@@ -37,20 +37,30 @@
     .state-search { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 12px; color: var(--text); outline: none; margin-bottom: 8px; font-family: inherit; }
     .state-search:focus { border-color: var(--accent); }
     .state-search::placeholder { color: var(--text-dim); }
-    .state-scroll { max-height: 320px; overflow-y: auto; }
+    .state-scroll { max-height: 220px; overflow-y: auto; }
     .state-scroll::-webkit-scrollbar { width: 3px; }
     .state-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     .sel-count { font-size: 11px; color: var(--text-dim); margin-top: 6px; font-family: 'IBM Plex Mono', monospace; }
-    .run-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; letter-spacing: 0.01em; transition: opacity .15s, transform .1s; }
+    select.styled { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 12px; color: var(--text); outline: none; font-family: inherit; cursor: pointer; }
+    select.styled:focus { border-color: var(--accent); }
+    .run-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity .15s, transform .1s; }
     .run-btn:hover { opacity: .9; }
     .run-btn:active { transform: scale(.98); }
     .run-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .predict-btn { width: 100%; padding: 10px; background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity .15s; }
+    .predict-btn:hover { opacity: .8; }
+    .predict-btn:disabled { opacity: .4; cursor: not-allowed; }
     main { flex: 1; overflow-y: auto; padding: 1.5rem 2rem; }
     main::-webkit-scrollbar { width: 4px; }
     main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-    .main-header { margin-bottom: 1.5rem; }
+    .main-header { margin-bottom: 1rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
     .main-header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
     .main-header p { font-size: 13px; color: var(--text-muted); }
+    .tab-row { display: flex; gap: 4px; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+    .tab { padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-muted); transition: color .15s; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    .bookmark-count { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; width: 16px; height: 16px; border-radius: 50%; margin-left: 5px; }
     .error-banner { background: var(--red-dim); border: 1px solid rgba(239,68,68,0.25); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; color: #fca5a5; margin-bottom: 1rem; display: none; word-break: break-all; }
     .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5rem 2rem; text-align: center; color: var(--text-muted); }
     .empty-icon { font-size: 40px; margin-bottom: 1rem; opacity: .3; }
@@ -64,12 +74,12 @@
     .legend-item { display: flex; align-items: center; gap: 5px; }
     .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
     .articles-grid { display: flex; flex-direction: column; gap: 10px; }
-    .article-card { background: var(--surface); border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius-lg); padding: 1rem 1.25rem; transition: border-color .15s; }
+    .article-card { background: var(--surface); border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius-lg); padding: 1rem 1.25rem; transition: border-color .15s; position: relative; }
     .article-card:hover { border-color: var(--border-hover); }
     .article-card.high { border-left-color: var(--red); }
     .article-card.medium { border-left-color: var(--amber); }
     .article-card.low { border-left-color: var(--green); }
-    .card-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .card-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; padding-right: 32px; }
     .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
     .badge-blue   { background: var(--accent-dim); color: #93c5fd; }
     .badge-teal   { background: var(--teal-dim);   color: #5eead4; }
@@ -83,6 +93,15 @@
     .card-summary { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
     .card-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--accent); text-decoration: none; margin-top: 10px; opacity: .8; transition: opacity .15s; }
     .card-link:hover { opacity: 1; }
+    .bookmark-btn { position: absolute; top: 12px; right: 12px; background: none; border: none; cursor: pointer; font-size: 18px; opacity: .4; transition: opacity .2s, transform .15s; padding: 2px; line-height: 1; }
+    .bookmark-btn:hover { opacity: 1; transform: scale(1.15); }
+    .bookmark-btn.saved { opacity: 1; }
+    .prediction-box { background: var(--surface); border: 1px solid rgba(167,139,250,0.25); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.25rem; }
+    .prediction-box h3 { font-size: 14px; font-weight: 600; color: var(--purple); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .prediction-box .pred-meta { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; font-family: 'IBM Plex Mono', monospace; }
+    .prediction-box p { font-size: 13px; color: var(--text-muted); line-height: 1.7; margin-bottom: 10px; }
+    .prediction-box p:last-child { margin-bottom: 0; }
+    .prediction-box strong { color: var(--text); font-weight: 500; }
     @media (max-width: 768px) {
       .layout { flex-direction: column; height: auto; }
       aside { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
@@ -107,17 +126,34 @@
       <div id="topicFilters"></div>
     </div>
     <div class="sidebar-section">
+      <div class="sidebar-label">Date Range</div>
+      <select class="styled" id="dateRange">
+        <option value="1">Last 30 days</option>
+        <option value="3" selected>Last 3 months</option>
+        <option value="6">Last 6 months</option>
+        <option value="12">Last 12 months</option>
+      </select>
+    </div>
+    <div class="sidebar-section">
       <div class="sidebar-label">Scope</div>
       <input class="state-search" type="text" id="stateSearch" placeholder="Search states…" oninput="filterStates(this.value)">
       <div class="state-scroll" id="stateList"></div>
       <p class="sel-count" id="selCount">0 selected</p>
     </div>
     <button class="run-btn" id="runBtn" onclick="runBriefing()">Run briefing</button>
+    <button class="predict-btn" id="predictBtn" onclick="runPrediction()">✦ AI Prediction</button>
   </aside>
   <main>
     <div class="main-header">
-      <h1>Policy Intelligence Briefing</h1>
-      <p>Medicaid · Home care · Community-based services — federal &amp; state monitoring</p>
+      <div>
+        <h1>Policy Intelligence Briefing</h1>
+        <p>Medicaid · Home care · Community-based services — federal &amp; state monitoring</p>
+      </div>
+    </div>
+    <div class="tab-row">
+      <button class="tab active" onclick="switchTab('briefing')">Briefing</button>
+      <button class="tab" onclick="switchTab('bookmarks')" id="bookmarkTab">Bookmarks <span class="bookmark-count" id="bookmarkCount" style="display:none"></span></button>
+      <button class="tab" onclick="switchTab('prediction')" id="predictionTab" style="display:none">AI Prediction</button>
     </div>
     <div class="error-banner" id="errorBanner"></div>
     <div id="mainContent"></div>
@@ -141,9 +177,31 @@ const TOPIC_BADGE = {
   "Workforce":"badge-purple","Budget / Funding":"badge-red",
   "Budget/Funding":"badge-red","Legislation":"badge-blue",
 };
+
 let selStates = new Set();
 let selTopics = new Set(TOPICS.map(t=>t.id));
 let articles = [];
+let predictionText = "";
+let currentTab = "briefing";
+let bookmarks = JSON.parse(localStorage.getItem("pi_bookmarks") || "[]");
+
+function saveBookmarks(){ localStorage.setItem("pi_bookmarks", JSON.stringify(bookmarks)); updateBookmarkCount(); }
+function updateBookmarkCount(){
+  const c = document.getElementById("bookmarkCount");
+  if(bookmarks.length > 0){ c.textContent = bookmarks.length; c.style.display = "inline-flex"; }
+  else { c.style.display = "none"; }
+}
+function isBookmarked(title){ return bookmarks.some(b=>b.title===title); }
+function toggleBookmark(article){
+  if(isBookmarked(article.title)){
+    bookmarks = bookmarks.filter(b=>b.title!==article.title);
+  } else {
+    bookmarks.push({...article, savedAt: new Date().toISOString()});
+  }
+  saveBookmarks();
+  if(currentTab==="briefing") renderArticles(articles);
+  if(currentTab==="bookmarks") renderBookmarks();
+}
 
 function buildTopicFilters(){
   document.getElementById("topicFilters").innerHTML = TOPICS.map(t=>`
@@ -165,27 +223,46 @@ function buildStateList(filter=""){
 function filterStates(v){ buildStateList(v); }
 function toggleState(s,checked){ if(checked) selStates.add(s); else selStates.delete(s); updateCount(); }
 function updateCount(){ document.getElementById("selCount").textContent = selStates.size+" selected"; }
-function showError(msg){
-  const b = document.getElementById("errorBanner");
-  b.textContent = typeof msg === "object" ? JSON.stringify(msg) : msg;
-  b.style.display = "block";
+function showError(msg){ const b=document.getElementById("errorBanner"); b.textContent=typeof msg==="object"?JSON.stringify(msg):msg; b.style.display="block"; }
+function hideError(){ document.getElementById("errorBanner").style.display="none"; }
+
+function switchTab(tab){
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
+  hideError();
+  if(tab==="briefing") renderArticles(articles);
+  if(tab==="bookmarks") renderBookmarks();
+  if(tab==="prediction") renderPrediction();
 }
-function hideError(){ document.getElementById("errorBanner").style.display = "none"; }
-function showEmpty(){
-  document.getElementById("mainContent").innerHTML = `
-    <div class="empty-state">
-      <div class="empty-icon">📋</div>
-      <h2>No briefing loaded yet</h2>
-      <p>Select your states and topics on the left, then click Run Briefing to pull the latest policy updates.</p>
-    </div>`;
+
+function cardHTML(a, showRemove=false){
+  const urg=(a.urgency||"low").toLowerCase();
+  const tb=TOPIC_BADGE[a.topic]||"badge-gray";
+  const src=[a.source,a.date].filter(Boolean).join(" · ");
+  const bm = isBookmarked(a.title);
+  const articleJson = JSON.stringify(a).replace(/'/g,"&#39;").replace(/"/g,"&quot;");
+  return `<div class="article-card ${urg}">
+    <button class="bookmark-btn ${bm?"saved":""}" onclick='toggleBookmark(${JSON.stringify(a)})' title="${bm?"Remove bookmark":"Save bookmark"}">${bm?"🔖":"🏷️"}</button>
+    <div class="card-meta">
+      <span class="badge badge-blue">${a.state||"Unknown"}</span>
+      <span class="badge ${tb}">${a.topic||"General"}</span>
+      ${urg==="high"?`<span class="badge badge-red">High priority</span>`:""}
+      <span class="card-source">${src}</span>
+    </div>
+    <p class="card-title">${a.title}</p>
+    <p class="card-summary">${a.summary}</p>
+    ${a.url&&a.url.startsWith("http")?`<a class="card-link" href="${a.url}" target="_blank">↗ Read source</a>`:""}
+  </div>`;
 }
+
 function renderArticles(data){
   if(!data.length){
     document.getElementById("mainContent").innerHTML=`
       <div class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <h2>No results found</h2>
-        <p>Try adjusting your scope or topics and run again.</p>
+        <div class="empty-icon">📋</div>
+        <h2>No briefing loaded yet</h2>
+        <p>Select your states and topics on the left, then click Run Briefing to pull the latest policy updates.</p>
       </div>`;
     return;
   }
@@ -198,97 +275,125 @@ function renderArticles(data){
         <span class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>Low</span>
       </div>
     </div>
-    <div class="articles-grid">
-      ${data.map(a=>{
-        const urg=(a.urgency||"low").toLowerCase();
-        const tb=TOPIC_BADGE[a.topic]||"badge-gray";
-        const src=[a.source,a.date].filter(Boolean).join(" · ");
-        return `<div class="article-card ${urg}">
-          <div class="card-meta">
-            <span class="badge badge-blue">${a.state||"Unknown"}</span>
-            <span class="badge ${tb}">${a.topic||"General"}</span>
-            ${urg==="high"?`<span class="badge badge-red">High priority</span>`:""}
-            <span class="card-source">${src}</span>
-          </div>
-          <p class="card-title">${a.title}</p>
-          <p class="card-summary">${a.summary}</p>
-          ${a.url&&a.url.startsWith("http")?`<a class="card-link" href="${a.url}" target="_blank">↗ Read source</a>`:""}
-        </div>`;
-      }).join("")}
+    <div class="articles-grid">${data.map(a=>cardHTML(a)).join("")}</div>`;
+}
+
+function renderBookmarks(){
+  if(!bookmarks.length){
+    document.getElementById("mainContent").innerHTML=`
+      <div class="empty-state">
+        <div class="empty-icon">🔖</div>
+        <h2>No bookmarks yet</h2>
+        <p>Hit the bookmark icon on any briefing card to save it here for later.</p>
+      </div>`;
+    return;
+  }
+  document.getElementById("mainContent").innerHTML=`
+    <div class="results-meta"><span>${bookmarks.length} saved item${bookmarks.length!==1?"s":""}</span>
+      <button onclick="clearBookmarks()" style="background:none;border:none;color:var(--red);font-size:12px;cursor:pointer;font-family:inherit;">Clear all</button>
+    </div>
+    <div class="articles-grid">${bookmarks.map(a=>cardHTML(a)).join("")}</div>`;
+}
+
+function clearBookmarks(){ if(confirm("Clear all bookmarks?")){ bookmarks=[]; saveBookmarks(); renderBookmarks(); } }
+
+function renderPrediction(){
+  if(!predictionText){
+    document.getElementById("mainContent").innerHTML=`
+      <div class="empty-state">
+        <div class="empty-icon">✦</div>
+        <h2>No prediction generated yet</h2>
+        <p>Select your states and click AI Prediction to generate a forward-looking analysis based on the last 12 months of policy trends.</p>
+      </div>`;
+    return;
+  }
+  document.getElementById("mainContent").innerHTML=`
+    <div class="prediction-box">
+      <h3>✦ AI Policy Prediction</h3>
+      <p class="pred-meta">Generated ${new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})} · Based on 12-month trend analysis</p>
+      ${predictionText}
     </div>`;
 }
 
 async function runBriefing(){
   if(selStates.size===0){ showError("Select at least one state or scope."); return; }
   hideError();
-  const btn = document.getElementById("runBtn");
-  btn.disabled = true;
-  btn.textContent = "Fetching…";
-  document.getElementById("mainContent").innerHTML=`
-    <div class="loading-state">
-      <div class="spinner"></div>
-      <span>Searching across ${selStates.size} scope${selStates.size!==1?"s":""} for recent policy updates…</span>
-    </div>`;
-  const statesStr = Array.from(selStates).join(", ");
-  const topicsStr = TOPICS.filter(t=>selTopics.has(t.id)).map(t=>t.label).join(", ");
-  const prompt = `Search the web for the most recent (2025-2026) news, policy changes, and legislation related to home care, Medicaid, and community-based programs in: ${statesStr}.
+  const btn=document.getElementById("runBtn");
+  btn.disabled=true; btn.textContent="Fetching…";
+  switchTab("briefing");
+  document.getElementById("mainContent").innerHTML=`<div class="loading-state"><div class="spinner"></div><span>Searching across ${selStates.size} scope${selStates.size!==1?"s":""} for recent policy updates…</span></div>`;
+
+  const months = document.getElementById("dateRange").value;
+  const dateLabel = months==="1"?"last 30 days":months==="3"?"last 3 months":months==="6"?"last 6 months":"last 12 months";
+  const statesStr=Array.from(selStates).join(", ");
+  const topicsStr=TOPICS.filter(t=>selTopics.has(t.id)).map(t=>t.label).join(", ");
+  const prompt=`Search the web for news and policy changes from the ${dateLabel} related to home care, Medicaid, and community-based programs in: ${statesStr}.
 Topic areas: ${topicsStr}.
+Only include items published or updated within the ${dateLabel}. Do not include anything older.
 Look for: new or pending bills, CMS rule changes, Medicaid rate adjustments, HCBS waiver updates, EVV compliance changes, workforce legislation, budget impacts.
 Return ONLY a raw JSON array, no markdown, no code fences, no explanation. Up to 12 items, each:
-{"title":"specific headline","summary":"2-3 sentences on what changed and why it matters to providers or recipients","state":"exact state name or Federal/National","topic":"one of: Medicaid Policy, Home Care, HCBS/Waivers, EVV/Compliance, Workforce, Budget/Funding, Legislation","date":"month year","source":"publication or agency name","url":"article URL or empty string","urgency":"high or medium or low"}`;
+{"title":"specific headline","summary":"2-3 sentences on what changed and why it matters to providers or recipients","state":"exact state name or Federal/National","topic":"one of: Medicaid Policy, Home Care, HCBS/Waivers, EVV/Compliance, Workforce, Budget/Funding, Legislation","date":"month year","source":"publication or agency name","url":"article URL if available otherwise empty string","urgency":"high or medium or low"}`;
 
   try {
-    const res = await fetch("/api/briefing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 8000,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-    const rawText = await res.text();
+    const res=await fetch("/api/briefing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:8000,tools:[{type:"web_search_20250305",name:"web_search"}],messages:[{role:"user",content:prompt}]})});
+    const rawText=await res.text();
     let parsed_res;
-    try { parsed_res = JSON.parse(rawText); } catch(e) {
-      showError("Server returned non-JSON: " + rawText.slice(0,300));
-      showEmpty(); return;
-    }
-    if(!res.ok){
-      showError("API error " + res.status + ": " + JSON.stringify(parsed_res));
-      showEmpty(); return;
-    }
-    const textBlocks = (parsed_res.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-    let parsed = null;
-    try {
-      const clean = textBlocks.replace(/```json|```/g,"").trim();
-      const match = clean.match(/\[[\s\S]*\]/);
-      if(match) parsed = JSON.parse(match[0]);
-      else parsed = JSON.parse(clean);
-    } catch(e){
-      showError("Could not parse response. Raw text: " + textBlocks.slice(0,400));
-      showEmpty(); return;
-    }
+    try { parsed_res=JSON.parse(rawText); } catch(e){ showError("Server error: "+rawText.slice(0,300)); renderArticles([]); return; }
+    if(!res.ok){ showError("API error "+res.status+": "+JSON.stringify(parsed_res)); renderArticles([]); return; }
+    const textBlocks=(parsed_res.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+    let parsed=null;
+    try { const clean=textBlocks.replace(/```json|```/g,"").trim(); const match=clean.match(/\[[\s\S]*\]/); if(match) parsed=JSON.parse(match[0]); else parsed=JSON.parse(clean); }
+    catch(e){ showError("Could not parse response: "+textBlocks.slice(0,400)); renderArticles([]); return; }
     if(Array.isArray(parsed)){
-      articles = parsed;
-      renderArticles(articles);
-      const ts = new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
-      document.getElementById("lastUpdated").textContent = "Last run: " + ts;
-    } else {
-      showError("Unexpected format. Content: " + textBlocks.slice(0,400));
-      showEmpty();
-    }
-  } catch(err){
-    showError("Request failed: " + err.message);
-    showEmpty();
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Run briefing";
-  }
+      articles=parsed; renderArticles(articles);
+      const ts=new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+      document.getElementById("lastUpdated").textContent="Last run: "+ts;
+    } else { showError("Unexpected format: "+textBlocks.slice(0,400)); renderArticles([]); }
+  } catch(err){ showError("Request failed: "+err.message); renderArticles([]); }
+  finally { btn.disabled=false; btn.textContent="Run briefing"; }
 }
+
+async function runPrediction(){
+  if(selStates.size===0){ showError("Select at least one state for the prediction."); return; }
+  hideError();
+  const btn=document.getElementById("predictBtn");
+  btn.disabled=true; btn.textContent="Analyzing…";
+  document.getElementById("predictionTab").style.display="";
+  switchTab("prediction");
+  document.getElementById("mainContent").innerHTML=`<div class="loading-state"><div class="spinner"></div><span>Analyzing 12 months of policy trends and generating predictions…</span></div>`;
+
+  const statesStr=Array.from(selStates).join(", ");
+  const prompt=`You are a senior health policy analyst specializing in Medicaid and home care.
+
+Search the web for policy trends, legislative activity, budget decisions, and regulatory changes over the last 12 months related to Medicaid, home care, HCBS, and community-based services in: ${statesStr}.
+
+Based on what you find, write a forward-looking predictive analysis covering:
+1. The most significant trends you identified and what direction they are heading
+2. Specific predictions for what is likely to happen in the next 6-12 months in these states
+3. How these changes could directly impact home care providers and recipients
+4. Any warning signs or opportunities that home care operators should be paying attention to right now
+
+Format your response as clear paragraphs with bold section headers. Be specific — name actual bills, programs, states, and dollar amounts where relevant. Write for a senior policy professional, not a general audience.`;
+
+  try {
+    const res=await fetch("/api/briefing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:8000,tools:[{type:"web_search_20250305",name:"web_search"}],messages:[{role:"user",content:prompt}]})});
+    const rawText=await res.text();
+    let parsed_res;
+    try { parsed_res=JSON.parse(rawText); } catch(e){ showError("Server error: "+rawText.slice(0,300)); return; }
+    if(!res.ok){ showError("API error "+res.status+": "+JSON.stringify(parsed_res)); return; }
+    const textBlocks=(parsed_res.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+    if(textBlocks){
+      predictionText=textBlocks.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").split("\n\n").map(p=>`<p>${p.replace(/\n/g,"<br>")}</p>`).join("");
+      renderPrediction();
+    } else { showError("No prediction returned. Please try again."); }
+  } catch(err){ showError("Request failed: "+err.message); }
+  finally { btn.disabled=false; btn.textContent="✦ AI Prediction"; }
+}
+
 buildTopicFilters();
 buildStateList();
-showEmpty();
+updateBookmarkCount();
+renderArticles([]);
 </script>
 </body>
 </html>
