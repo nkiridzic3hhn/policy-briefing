@@ -565,7 +565,7 @@ async function runBriefing() {
   btn.disabled = true; btn.textContent = "Fetching\u2026";
   switchTab("briefing");
   document.getElementById("mainContent").innerHTML =
-    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Scanning the web&hellip;</p><p class="load-sub">Searching across ' + selStates.size + ' scope' + (selStates.size !== 1 ? "s" : "") + ' for recent policy updates. This may take up to a minute while we cut through the internet for you.</p></div>';
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Scanning the web&hellip;</p><p class="load-sub">This may take up to a minute while we cut through the internet for you.</p></div>';
 
   var months    = document.getElementById("dateRange").value;
   var dateLabel = months === "1" ? "last 30 days" : months === "3" ? "last 3 months" : months === "6" ? "last 6 months" : "last 12 months";
