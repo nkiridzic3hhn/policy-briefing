@@ -8,313 +8,69 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface2: #1c2128;
-      --border: rgba(255,255,255,0.08);
-      --border-hover: rgba(255,255,255,0.15);
-      --text: #e6edf3;
-      --text-muted: #7d8590;
-      --text-dim: #4a5568;
-      --accent: #3b82f6;
-      --accent-dim: rgba(59,130,246,0.12);
-      --green: #22c55e;
-      --green-dim: rgba(34,197,94,0.12);
-      --amber: #f59e0b;
-      --amber-dim: rgba(245,158,11,0.12);
-      --red: #ef4444;
-      --red-dim: rgba(239,68,68,0.12);
-      --teal: #14b8a6;
-      --teal-dim: rgba(20,184,166,0.12);
-      --purple: #a78bfa;
-      --purple-dim: rgba(167,139,250,0.12);
-      --radius: 8px;
-      --radius-lg: 12px;
+      --bg: #0d1117; --surface: #161b22; --surface2: #1c2128;
+      --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.15);
+      --text: #e6edf3; --text-muted: #7d8590; --text-dim: #4a5568;
+      --accent: #3b82f6; --accent-dim: rgba(59,130,246,0.12);
+      --green: #22c55e; --green-dim: rgba(34,197,94,0.12);
+      --amber: #f59e0b; --amber-dim: rgba(245,158,11,0.12);
+      --red: #ef4444; --red-dim: rgba(239,68,68,0.12);
+      --teal: #14b8a6; --teal-dim: rgba(20,184,166,0.12);
+      --purple: #a78bfa; --purple-dim: rgba(167,139,250,0.12);
+      --radius: 8px; --radius-lg: 12px;
     }
-
-    body {
-      font-family: 'IBM Plex Sans', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    header {
-      border-bottom: 1px solid var(--border);
-      padding: 0 2rem;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      background: var(--bg);
-      z-index: 10;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
-
-    .logo-mark {
-      width: 28px;
-      height: 28px;
-      background: var(--accent);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 12px;
-      font-weight: 500;
-      color: #fff;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    #lastUpdated {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 11px;
-    }
-
-    .layout {
-      display: flex;
-      height: calc(100vh - 56px);
-    }
-
-    aside {
-      width: 240px;
-      flex-shrink: 0;
-      border-right: 1px solid var(--border);
-      overflow-y: auto;
-      padding: 1.25rem 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.25rem;
-    }
-
+    body { font-family: 'IBM Plex Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.6; }
+    header { border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .logo-mark { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #fff; }
+    .header-right { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-muted); }
+    #lastUpdated { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+    .layout { display: flex; height: calc(100vh - 56px); }
+    aside { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; padding: 1.25rem 1rem; display: flex; flex-direction: column; gap: 1.25rem; }
     aside::-webkit-scrollbar { width: 4px; }
     aside::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
-
-    .sidebar-section {}
-    .sidebar-label {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      margin-bottom: 8px;
-    }
-
-    .chk-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 0;
-      cursor: pointer;
-      font-size: 13px;
-      color: var(--text-muted);
-      transition: color .15s;
-    }
+    .sidebar-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+    .chk-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; font-size: 13px; color: var(--text-muted); transition: color .15s; }
     .chk-row:hover { color: var(--text); }
-    .chk-row input[type="checkbox"] {
-      accent-color: var(--accent);
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-
-    .state-search {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 6px 10px;
-      font-size: 12px;
-      color: var(--text);
-      outline: none;
-      margin-bottom: 8px;
-      font-family: inherit;
-    }
+    .chk-row input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+    .state-search { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 12px; color: var(--text); outline: none; margin-bottom: 8px; font-family: inherit; }
     .state-search:focus { border-color: var(--accent); }
     .state-search::placeholder { color: var(--text-dim); }
-
-    .state-scroll {
-      max-height: 320px;
-      overflow-y: auto;
-    }
+    .state-scroll { max-height: 320px; overflow-y: auto; }
     .state-scroll::-webkit-scrollbar { width: 3px; }
     .state-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    .sel-count {
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-top: 6px;
-      font-family: 'IBM Plex Mono', monospace;
-    }
-
-    .run-btn {
-      width: 100%;
-      padding: 10px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-      letter-spacing: 0.01em;
-      transition: opacity .15s, transform .1s;
-    }
+    .sel-count { font-size: 11px; color: var(--text-dim); margin-top: 6px; font-family: 'IBM Plex Mono', monospace; }
+    .run-btn { width: 100%; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; letter-spacing: 0.01em; transition: opacity .15s, transform .1s; }
     .run-btn:hover { opacity: .9; }
     .run-btn:active { transform: scale(.98); }
     .run-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
-
-    main {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1.5rem 2rem;
-    }
+    main { flex: 1; overflow-y: auto; padding: 1.5rem 2rem; }
     main::-webkit-scrollbar { width: 4px; }
     main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    .main-header {
-      margin-bottom: 1.5rem;
-    }
-    .main-header h1 {
-      font-size: 20px;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      margin-bottom: 4px;
-    }
-    .main-header p {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .error-banner {
-      background: var(--red-dim);
-      border: 1px solid rgba(239,68,68,0.25);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      font-size: 13px;
-      color: #fca5a5;
-      margin-bottom: 1rem;
-      display: none;
-    }
-
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 5rem 2rem;
-      text-align: center;
-      color: var(--text-muted);
-    }
-    .empty-icon {
-      font-size: 40px;
-      margin-bottom: 1rem;
-      opacity: .3;
-    }
+    .main-header { margin-bottom: 1.5rem; }
+    .main-header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .main-header p { font-size: 13px; color: var(--text-muted); }
+    .error-banner { background: var(--red-dim); border: 1px solid rgba(239,68,68,0.25); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; color: #fca5a5; margin-bottom: 1rem; display: none; word-break: break-all; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5rem 2rem; text-align: center; color: var(--text-muted); }
+    .empty-icon { font-size: 40px; margin-bottom: 1rem; opacity: .3; }
     .empty-state h2 { font-size: 16px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
     .empty-state p { font-size: 13px; max-width: 320px; }
-
-    .loading-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 5rem 2rem;
-      gap: 12px;
-      color: var(--text-muted);
-      font-size: 13px;
-    }
-
-    .spinner {
-      width: 24px;
-      height: 24px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-    }
+    .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5rem 2rem; gap: 12px; color: var(--text-muted); font-size: 13px; }
+    .spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    .results-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-    .legend {
-      display: flex;
-      gap: 12px;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-    }
-
-    .articles-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .article-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-left-width: 3px;
-      border-radius: var(--radius-lg);
-      padding: 1rem 1.25rem;
-      transition: border-color .15s;
-    }
+    .results-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; font-size: 12px; color: var(--text-muted); }
+    .legend { display: flex; gap: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+    .articles-grid { display: flex; flex-direction: column; gap: 10px; }
+    .article-card { background: var(--surface); border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius-lg); padding: 1rem 1.25rem; transition: border-color .15s; }
     .article-card:hover { border-color: var(--border-hover); }
     .article-card.high { border-left-color: var(--red); }
     .article-card.medium { border-left-color: var(--amber); }
     .article-card.low { border-left-color: var(--green); }
-
-    .card-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      font-size: 11px;
-      font-weight: 500;
-      padding: 2px 8px;
-      border-radius: 4px;
-      white-space: nowrap;
-    }
+    .card-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
     .badge-blue   { background: var(--accent-dim); color: #93c5fd; }
     .badge-teal   { background: var(--teal-dim);   color: #5eead4; }
     .badge-green  { background: var(--green-dim);  color: #86efac; }
@@ -322,41 +78,11 @@
     .badge-red    { background: var(--red-dim);    color: #fca5a5; }
     .badge-purple { background: var(--purple-dim); color: #c4b5fd; }
     .badge-gray   { background: rgba(255,255,255,0.06); color: var(--text-muted); }
-
-    .card-source {
-      margin-left: auto;
-      font-size: 11px;
-      color: var(--text-dim);
-      font-family: 'IBM Plex Mono', monospace;
-    }
-
-    .card-title {
-      font-size: 14px;
-      font-weight: 600;
-      line-height: 1.4;
-      margin-bottom: 6px;
-      color: var(--text);
-    }
-
-    .card-summary {
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    .card-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 12px;
-      color: var(--accent);
-      text-decoration: none;
-      margin-top: 10px;
-      opacity: .8;
-      transition: opacity .15s;
-    }
+    .card-source { margin-left: auto; font-size: 11px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
+    .card-title { font-size: 14px; font-weight: 600; line-height: 1.4; margin-bottom: 6px; color: var(--text); }
+    .card-summary { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+    .card-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--accent); text-decoration: none; margin-top: 10px; opacity: .8; transition: opacity .15s; }
     .card-link:hover { opacity: 1; }
-
     @media (max-width: 768px) {
       .layout { flex-direction: column; height: auto; }
       aside { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
@@ -365,7 +91,6 @@
   </style>
 </head>
 <body>
-
 <header>
   <div class="logo">
     <div class="logo-mark">PI</div>
@@ -375,38 +100,31 @@
     <span id="lastUpdated"></span>
   </div>
 </header>
-
 <div class="layout">
   <aside>
     <div class="sidebar-section">
       <div class="sidebar-label">Topics</div>
       <div id="topicFilters"></div>
     </div>
-
     <div class="sidebar-section">
       <div class="sidebar-label">Scope</div>
       <input class="state-search" type="text" id="stateSearch" placeholder="Search states…" oninput="filterStates(this.value)">
       <div class="state-scroll" id="stateList"></div>
       <p class="sel-count" id="selCount">0 selected</p>
     </div>
-
     <button class="run-btn" id="runBtn" onclick="runBriefing()">Run briefing</button>
   </aside>
-
   <main>
     <div class="main-header">
       <h1>Policy Intelligence Briefing</h1>
       <p>Medicaid · Home care · Community-based services — federal &amp; state monitoring</p>
     </div>
-
     <div class="error-banner" id="errorBanner"></div>
     <div id="mainContent"></div>
   </main>
 </div>
-
 <script>
 const STATES = ["Federal/National","Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming","District of Columbia"];
-
 const TOPICS = [
   {id:"medicaid",label:"Medicaid Policy"},
   {id:"homecare",label:"Home Care"},
@@ -416,20 +134,13 @@ const TOPICS = [
   {id:"budget",label:"Budget / Funding"},
   {id:"legislation",label:"Legislation"},
 ];
-
 const TOPIC_BADGE = {
-  "Medicaid Policy":"badge-blue",
-  "Home Care":"badge-teal",
-  "HCBS / Waivers":"badge-green",
-  "HCBS/Waivers":"badge-green",
-  "EVV / Compliance":"badge-amber",
-  "EVV/Compliance":"badge-amber",
-  "Workforce":"badge-purple",
-  "Budget / Funding":"badge-red",
-  "Budget/Funding":"badge-red",
-  "Legislation":"badge-blue",
+  "Medicaid Policy":"badge-blue","Home Care":"badge-teal",
+  "HCBS / Waivers":"badge-green","HCBS/Waivers":"badge-green",
+  "EVV / Compliance":"badge-amber","EVV/Compliance":"badge-amber",
+  "Workforce":"badge-purple","Budget / Funding":"badge-red",
+  "Budget/Funding":"badge-red","Legislation":"badge-blue",
 };
-
 let selStates = new Set();
 let selTopics = new Set(TOPICS.map(t=>t.id));
 let articles = [];
@@ -441,9 +152,7 @@ function buildTopicFilters(){
       ${t.label}
     </label>`).join("");
 }
-
 function toggleTopic(id,checked){ if(checked) selTopics.add(id); else selTopics.delete(id); }
-
 function buildStateList(filter=""){
   const filtered = STATES.filter(s=>s.toLowerCase().includes(filter.toLowerCase()));
   document.getElementById("stateList").innerHTML = filtered.map(s=>`
@@ -453,18 +162,15 @@ function buildStateList(filter=""){
     </label>`).join("");
   updateCount();
 }
-
 function filterStates(v){ buildStateList(v); }
 function toggleState(s,checked){ if(checked) selStates.add(s); else selStates.delete(s); updateCount(); }
 function updateCount(){ document.getElementById("selCount").textContent = selStates.size+" selected"; }
-
 function showError(msg){
   const b = document.getElementById("errorBanner");
-  b.textContent = msg;
+  b.textContent = typeof msg === "object" ? JSON.stringify(msg) : msg;
   b.style.display = "block";
 }
 function hideError(){ document.getElementById("errorBanner").style.display = "none"; }
-
 function showEmpty(){
   document.getElementById("mainContent").innerHTML = `
     <div class="empty-state">
@@ -473,7 +179,6 @@ function showEmpty(){
       <p>Select your states and topics on the left, then click Run Briefing to pull the latest policy updates.</p>
     </div>`;
 }
-
 function renderArticles(data){
   if(!data.length){
     document.getElementById("mainContent").innerHTML=`
@@ -484,7 +189,6 @@ function renderArticles(data){
       </div>`;
     return;
   }
-
   document.getElementById("mainContent").innerHTML=`
     <div class="results-meta">
       <span>${data.length} update${data.length!==1?"s":""} found</span>
@@ -525,15 +229,11 @@ async function runBriefing(){
       <div class="spinner"></div>
       <span>Searching across ${selStates.size} scope${selStates.size!==1?"s":""} for recent policy updates…</span>
     </div>`;
-
   const statesStr = Array.from(selStates).join(", ");
   const topicsStr = TOPICS.filter(t=>selTopics.has(t.id)).map(t=>t.label).join(", ");
   const prompt = `Search the web for the most recent (2025-2026) news, policy changes, and legislation related to home care, Medicaid, and community-based programs in: ${statesStr}.
-
 Topic areas: ${topicsStr}.
-
 Look for: new or pending bills, CMS rule changes, Medicaid rate adjustments, HCBS waiver updates, EVV compliance changes, workforce legislation, budget impacts.
-
 Return ONLY a raw JSON array, no markdown, no code fences, no explanation. Up to 12 items, each:
 {"title":"specific headline","summary":"2-3 sentences on what changed and why it matters to providers or recipients","state":"exact state name or Federal/National","topic":"one of: Medicaid Policy, Home Care, HCBS/Waivers, EVV/Compliance, Workforce, Budget/Funding, Legislation","date":"month year","source":"publication or agency name","url":"article URL or empty string","urgency":"high or medium or low"}`;
 
@@ -542,23 +242,23 @@ Return ONLY a raw JSON array, no markdown, no code fences, no explanation. Up to
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 8000,
         tools: [{ type: "web_search_20250305", name: "web_search" }],
         messages: [{ role: "user", content: prompt }]
       })
     });
-
-    if(!res.ok){
-      const err = await res.json().catch(()=>({error:"Unknown error"}));
-      showError("API error: " + (err.error || res.status));
-      showEmpty();
-      return;
+    const rawText = await res.text();
+    let parsed_res;
+    try { parsed_res = JSON.parse(rawText); } catch(e) {
+      showError("Server returned non-JSON: " + rawText.slice(0,300));
+      showEmpty(); return;
     }
-
-    const data = await res.json();
-    const textBlocks = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-
+    if(!res.ok){
+      showError("API error " + res.status + ": " + JSON.stringify(parsed_res));
+      showEmpty(); return;
+    }
+    const textBlocks = (parsed_res.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
     let parsed = null;
     try {
       const clean = textBlocks.replace(/```json|```/g,"").trim();
@@ -566,18 +266,16 @@ Return ONLY a raw JSON array, no markdown, no code fences, no explanation. Up to
       if(match) parsed = JSON.parse(match[0]);
       else parsed = JSON.parse(clean);
     } catch(e){
-      showError("Could not parse response. Please try again.");
-      showEmpty();
-      return;
+      showError("Could not parse response. Raw text: " + textBlocks.slice(0,400));
+      showEmpty(); return;
     }
-
     if(Array.isArray(parsed)){
       articles = parsed;
       renderArticles(articles);
       const ts = new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
       document.getElementById("lastUpdated").textContent = "Last run: " + ts;
     } else {
-      showError("Unexpected response format. Please try again.");
+      showError("Unexpected format. Content: " + textBlocks.slice(0,400));
       showEmpty();
     }
   } catch(err){
@@ -588,7 +286,6 @@ Return ONLY a raw JSON array, no markdown, no code fences, no explanation. Up to
     btn.textContent = "Run briefing";
   }
 }
-
 buildTopicFilters();
 buildStateList();
 showEmpty();
