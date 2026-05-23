@@ -207,15 +207,19 @@
     .empty-state p { font-size: 13px; max-width: 320px; }
     .loading-state {
       display: flex; flex-direction: column; align-items: center;
-      justify-content: center; padding: 5rem 2rem; gap: 12px;
-      color: var(--text-muted); font-size: 13px;
+      justify-content: center; padding: 5rem 2rem; gap: 16px;
+      color: var(--text-muted); font-size: 13px; text-align: center;
     }
-    .spinner {
-      width: 24px; height: 24px; border: 2px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%;
-      animation: spin .7s linear infinite;
+    .loading-state img {
+      height: 90px; width: auto;
+      animation: bounce 0.6s infinite alternate cubic-bezier(.4,0,.2,1);
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-state .load-title {
+      font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 2px;
+    }
+    .loading-state .load-sub {
+      font-size: 12px; color: var(--text-dim); max-width: 280px; line-height: 1.6;
+    }
 
     /* ── Results ── */
     .results-meta {
@@ -561,7 +565,7 @@ async function runBriefing() {
   btn.disabled = true; btn.textContent = "Fetching\u2026";
   switchTab("briefing");
   document.getElementById("mainContent").innerHTML =
-    '<div class="loading-state"><div class="spinner"></div><span>Searching across ' + selStates.size + ' scope' + (selStates.size !== 1 ? "s" : "") + '\u2026</span></div>';
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Scanning the web&hellip;</p><p class="load-sub">Searching across ' + selStates.size + ' scope' + (selStates.size !== 1 ? "s" : "") + ' for recent policy updates. This may take up to a minute while we cut through the internet for you.</p></div>';
 
   var months    = document.getElementById("dateRange").value;
   var dateLabel = months === "1" ? "last 30 days" : months === "3" ? "last 3 months" : months === "6" ? "last 6 months" : "last 12 months";
@@ -603,7 +607,7 @@ async function runPrediction() {
   document.getElementById("tab-prediction").style.display = "";
   switchTab("prediction");
   document.getElementById("mainContent").innerHTML =
-    '<div class="loading-state"><div class="spinner"></div><span>Analyzing 12 months of policy trends\u2026</span></div>';
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Analyzing policy trends&hellip;</p><p class="load-sub">Searching 12 months of legislative activity, regulatory changes, and policy shifts. This may take up to a minute &mdash; good things take time.</p></div>';
 
   var statesStr = Array.from(selStates).join(", ");
   var prompt = "You are a senior health policy analyst specializing in Medicaid and home care.\n\n" +
