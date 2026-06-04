@@ -934,18 +934,20 @@ async function runRepAnalysis() {
 
   var today = new Date().toDateString();
   var prompt = "You are a brand-reputation analyst for Honor Health Network, a home care company. Today's date is " + today + ".\n\n" +
-    "Below is a JSON list of real third-party mentions found across the web about Honor-owned agencies, brands, and people. Each has: agency, title, summary, sentiment, platform, source, and date (the date may be an empty string if it could not be determined).\n\n" +
+    "Below is a JSON list of real third-party mentions found about Honor-owned agencies, brands, or people. Each has: agency, title, summary, sentiment, platform, source, and date (date may be empty if unknown).\n\n" +
     "MENTIONS:\n" + JSON.stringify(repResults) + "\n\n" +
-    "Write an executive reputation briefing covering:\n" +
-    "1. OVERALL: in one short paragraph, how Honor's brands come off right now and the balance of positive vs negative.\n" +
-    "2. BY AREA: for EACH agency/brand/person that appears in the mentions, a short assessment of how they come off, the recurring themes (good and bad), and the most damaging or notable items.\n" +
-    "3. RECENCY: weigh recent mentions more heavily than older ones relative to today's date. Explicitly flag when a negative is recent (an active problem) versus years old (likely stale). Where a date is missing, say the timing is unclear. Call out any area where the negativity looks recent or worsening.\n" +
-    "4. PRIORITIES: the 2-3 areas that need attention first, based on BOTH severity and recency.\n\n" +
-    "Base everything ONLY on the mentions provided \u2014 do not invent facts or search the web. Format as paragraphs with bold section headers using **Header** syntax. Cite the agency names and what reviewers actually said. Write for a senior executive.";
+    "Write a SHORT, scannable executive summary \u2014 aim for UNDER 250 words total. Be concise and factual, not alarmist or dramatic. Paraphrase; do not include long quotes.\n\n" +
+    "ONLY discuss agencies/names that actually appear in the mentions above \u2014 never mention an organization that is not present in the data. Do not search the web or add outside facts.\n\n" +
+    "Use exactly these three short sections, each label in **bold**, and do NOT use markdown headers or any # signs:\n" +
+    "**Bottom line:** one or two sentences, plus the count (e.g. '10 mentions: 8 negative, 2 positive').\n" +
+    "**By area:** for each agency present, just ONE or two sentences on how it comes off and the main theme. Note recency: flag recent negatives as active problems vs older ones as likely stale; if the date is missing, say the timing is unclear.\n" +
+    "**Watch first:** the single most important thing to act on, in one sentence.\n\n" +
+    "Weigh recent mentions (relative to today) more heavily than old ones. Keep it tight.";
 
   try {
     var text = await callAPI(prompt, { noTools: true });
     repAnalysis = text
+      .replace(/^#{1,6}\s*/gm, "")
       .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
       .split("\n\n")
       .map(function(p) { return "<p>" + p.replace(/\n/g, "<br>") + "</p>"; })
