@@ -885,53 +885,73 @@ function renderReputation() {
     '<div class="articles-grid">' + cards + '</div>';
 }
 
+function repLoading(done, total) {
+  document.getElementById("repContent").innerHTML =
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Scanning for mentions&hellip;</p><p class="load-sub">Batch ' + done + ' of ' + total + ' &middot; searching your selected channels. Results appear here as they come in.</p></div>';
+}
+
+function repPrompt(watchStr, dateLabel, channelStr, exclStr) {
+  return "You are a brand-reputation monitor for Honor Health Network, a home care company.\n\n" +
+    "Search the web for third-party mentions from the " + dateLabel + " of the following Honor-owned agencies, brands, or people. Each item includes context so you return the CORRECT organization and not a similarly-named unrelated one:\n\n" +
+    watchStr + "\n\n" +
+    "ONLY search these channels: " + channelStr + ". (News = news outlets and press; Web = general web pages and blogs; Reddit = reddit threads; YouTube = video titles, descriptions, and comments; Reviews = review sites such as Google, Yelp, Indeed, Glassdoor.)\n\n" +
+    "STRICT EXCLUSIONS: Do NOT include content published by Honor itself. Ignore anything from these owned properties and their own social accounts: " + exclStr + ". We want what OTHER people, customers, employees, reviewers, and outlets are saying \u2014 not our own marketing or job postings.\n\n" +
+    "Prioritize negative or critical mentions: complaints, bad reviews, lawsuits, regulatory actions, layoffs, or negative press. Then include notable positive and neutral mentions. If you find nothing for a name, skip it.\n\n" +
+    "Return ONLY a raw JSON array, no markdown, no code fences. If you find nothing at all, return []. Each item has these exact keys:\n" +
+    "{\"agency\":\"which watchlist name this is about\",\"title\":\"headline or post title\",\"summary\":\"2-3 sentence summary of what was actually said\",\"sentiment\":\"positive|negative|neutral\",\"platform\":\"News|Reddit|YouTube|Web|Reviews|Other\",\"source\":\"site or outlet name\",\"date\":\"month year\",\"url\":\"direct url or empty string\"}";
+}
+
 async function runReputation() {
   repHideError();
   if (selNames.size === 0)    { repShowError("Select at least one name to watch."); return; }
   if (selChannels.size === 0) { repShowError("Select at least one channel.");        return; }
   var btn = document.getElementById("repBtn");
   btn.disabled = true; btn.textContent = "Scanning\u2026";
-  document.getElementById("repContent").innerHTML =
-    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Scanning for mentions&hellip;</p><p class="load-sub">Searching your selected channels across the web. This may take up to a minute.</p></div>';
 
   var months    = document.getElementById("repDateRange").value;
   var dateLabel = months === "1" ? "last 30 days" : months === "3" ? "last 3 months" : months === "6" ? "last 6 months" : "last 12 months";
-
-  var chosen = [];
-  for (var i = 0; i < WATCHLIST.length; i++) if (selNames.has(i)) chosen.push(WATCHLIST[i]);
-  var watchStr   = chosen.map(function(w) { return "- " + w.name + (w.context ? " \u2014 " + w.context : ""); }).join("\n");
   var channelStr = Array.from(selChannels).join(", ");
   var exclStr    = EXCLUDE.join(", ");
 
-  var prompt = "You are a brand-reputation monitor for Honor Health Network, a home care company.\n\n" +
-    "Search the web for third-party mentions from the " + dateLabel + " of the following Honor-owned agencies, brands, and people. Each item includes context so you return the CORRECT organization and not a similarly-named unrelated one:\n\n" +
-    watchStr + "\n\n" +
-    "ONLY search these channels: " + channelStr + ". (News = news outlets and press; Web = general web pages and blogs; Reddit = reddit threads; YouTube = video titles, descriptions, and comments; Reviews = review sites such as Google, Yelp, Indeed, Glassdoor.)\n\n" +
-    "STRICT EXCLUSIONS: Do NOT include content published by Honor itself. Ignore anything from these owned properties and their own social accounts: " + exclStr + ". We want what OTHER people, customers, employees, reviewers, and outlets are saying \u2014 not our own marketing or job postings.\n\n" +
-    "Prioritize negative or critical mentions first: complaints, bad reviews, lawsuits, regulatory actions, layoffs, or negative press. Then include notable positive and neutral mentions. If you find nothing for a given name, skip it.\n\n" +
-    "Return ONLY a raw JSON array, no markdown, no code fences. Up to 25 items, each with these exact keys:\n" +
-    "{\"agency\":\"which watchlist name this is about\",\"title\":\"headline or post title\",\"summary\":\"2-3 sentence summary of what was actually said\",\"sentiment\":\"positive|negative|neutral\",\"platform\":\"News|Reddit|YouTube|Web|Reviews|Other\",\"source\":\"site or outlet name\",\"date\":\"month year\",\"url\":\"direct url or empty string\"}";
+  var chosen = [];
+  for (var i = 0; i < WATCHLIST.length; i++) if (selNames.has(i)) chosen.push(WATCHLIST[i]);
 
-  try {
-    var text  = await callAPI(prompt);
-    var clean = text.replace(/```json|```/g, "").trim();
-    var match = clean.match(/\[[\s\S]*\]/);
-    var data  = JSON.parse(match ? match[0] : clean);
-    if (Array.isArray(data)) {
-      repResults = data;
-      renderReputation();
-      document.getElementById("lastUpdated").textContent = "Last run: " + new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
-    } else {
-      repShowError("Unexpected response format. Please try again.");
-      renderReputation();
+  // Split into small batches so each search stays focused and actually returns results.
+  var BATCH = 4;
+  var batches = [];
+  for (var b = 0; b < chosen.length; b += BATCH) batches.push(chosen.slice(b, b + BATCH));
+
+  repResults = [];
+  var errors = 0;
+  repLoading(0, batches.length);
+
+  for (var k = 0; k < batches.length; k++) {
+    var watchStr = batches[k].map(function(w) { return "- " + w.name + (w.context ? " \u2014 " + w.context : ""); }).join("\n");
+    try {
+      var text  = await callAPI(repPrompt(watchStr, dateLabel, channelStr, exclStr));
+      var clean = text.replace(/```json|```/g, "").trim();
+      var match = clean.match(/\[[\s\S]*\]/);
+      var data  = JSON.parse(match ? match[0] : clean);
+      if (Array.isArray(data)) repResults = repResults.concat(data);
+    } catch(err) {
+      errors++;
     }
-  } catch(err) {
-    repShowError(err.message);
-    repResults = [];
-    renderReputation();
-  } finally {
-    btn.disabled = false; btn.textContent = "Scan for mentions";
+    // Show what we have so far; otherwise keep the progress loader running.
+    if (repResults.length) renderReputation();
+    else if (k < batches.length - 1) repLoading(k + 1, batches.length);
   }
+
+  if (repResults.length) {
+    renderReputation();
+    document.getElementById("lastUpdated").textContent = "Last run: " + new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+    if (errors) repShowError(errors + " of " + batches.length + " batches had a hiccup; showing everything else that came back. Run again to retry.");
+  } else {
+    renderReputation();
+    if (errors) repShowError("The scan ran but every batch errored \u2014 likely a timeout. Try fewer names or a shorter date range.");
+    else repShowError("Scan finished but found no third-party mentions for the selected names in this window. Try widening the date range or selecting the bigger names (Honor Health Network, Quality Healthcare).");
+  }
+
+  btn.disabled = false; btn.textContent = "Scan for mentions";
 }
 
 // ── Init ──
