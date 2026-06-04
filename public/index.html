@@ -404,6 +404,7 @@
       <p class="sel-count" id="nameCount">0 selected</p>
     </div>
     <button class="run-btn" id="repBtn" onclick="runReputation()">Scan for mentions</button>
+    <button class="predict-btn" id="repAnalyzeBtn" onclick="runRepAnalysis()">&#10022; Reputation Analyzer</button>
   </aside>
 
   <!-- Main Content -->
@@ -431,6 +432,10 @@
       <div class="main-header">
         <h1>Reputation Watch</h1>
         <p>What people are saying about Honor Health Network agencies &amp; brands &mdash; across news, web, Reddit &amp; YouTube</p>
+      </div>
+      <div class="tab-row">
+        <button class="tab active" id="rtab-mentions" onclick="switchRepTab('mentions')">Mentions</button>
+        <button class="tab" id="rtab-analysis" onclick="switchRepTab('analysis')" style="display:none">&#10022; Analysis</button>
       </div>
       <div class="error-banner" id="repError"></div>
       <div id="repContent"></div>
@@ -538,6 +543,8 @@ let bookmarks   = [];
 // ── Reputation Watch state ──
 let appMode     = "policy";
 let repResults  = [];
+let repAnalysis = "";
+let repTab      = "mentions";
 let selNames    = new Set();
 let selChannels = new Set();
 
@@ -686,16 +693,18 @@ function renderPrediction() {
 }
 
 // ── API call ──
-async function callAPI(prompt) {
+async function callAPI(prompt, opts) {
+  opts = opts || {};
+  var body = {
+    model: "claude-sonnet-4-5",
+    max_tokens: 8000,
+    messages: [{ role: "user", content: prompt }]
+  };
+  if (!opts.noTools) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
   var res = await fetch("/api/briefing", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-5",
-      max_tokens: 8000,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
-      messages: [{ role: "user", content: prompt }]
-    })
+    body: JSON.stringify(body)
   });
   var raw = await res.text();
   var parsed;
@@ -844,7 +853,9 @@ function mentionCardHTML(m) {
   var sentClass = sent === "negative" ? "negative" : sent === "positive" ? "positive" : "neutral";
   var sentBadge = sent === "negative" ? "badge-neg" : sent === "positive" ? "badge-pos" : "badge-neu";
   var sentLabel = sent.charAt(0).toUpperCase() + sent.slice(1);
-  var src = [m.platform, m.source, m.date].filter(Boolean).join(" \u00b7 ");
+  var dt = (m.date || "").trim();
+  if (/unknown|^n\/?a$|not\s*(known|available)|no\s*date|null|undated/i.test(dt)) dt = "";
+  var src = [m.platform, m.source, dt].filter(Boolean).join(" \u00b7 ");
   return '<div class="article-card ' + sentClass + '">' +
     '<div class="card-meta">' +
     '<span class="badge badge-pink">' + (m.agency || "Honor Health Network") + '</span>' +
@@ -885,6 +896,70 @@ function renderReputation() {
     '<div class="articles-grid">' + cards + '</div>';
 }
 
+function switchRepTab(tab) {
+  repTab = tab;
+  document.getElementById("rtab-mentions").classList.toggle("active", tab === "mentions");
+  document.getElementById("rtab-analysis").classList.toggle("active", tab === "analysis");
+  repHideError();
+  if (tab === "mentions") renderReputation();
+  else renderRepAnalysis();
+}
+
+function renderRepAnalysis() {
+  if (!repAnalysis) {
+    document.getElementById("repContent").innerHTML =
+      '<div class="empty-state"><div class="empty-icon">&#10022;</div><h2>No analysis yet</h2><p>Run a scan first, then click <strong>Reputation Analyzer</strong> for an AI briefing on how each area comes off &mdash; weighted by how recent the mentions are.</p></div>';
+    return;
+  }
+  var ts = new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  document.getElementById("repContent").innerHTML =
+    '<div class="prediction-box"><h3>&#10022; Reputation Analysis</h3><p class="pred-meta">Generated ' + ts + ' &middot; Based on ' + repResults.length + ' mention' + (repResults.length !== 1 ? "s" : "") + '</p>' + repAnalysis + '</div>';
+}
+
+async function runRepAnalysis() {
+  repHideError();
+  document.getElementById("rtab-analysis").style.display = "";
+  if (!repResults.length) {
+    switchRepTab("analysis");
+    repShowError("Run a scan first \u2014 the analyzer reads across the mentions you've found.");
+    return;
+  }
+  var btn = document.getElementById("repAnalyzeBtn");
+  btn.disabled = true; btn.textContent = "Analyzing\u2026";
+  repTab = "analysis";
+  document.getElementById("rtab-mentions").classList.remove("active");
+  document.getElementById("rtab-analysis").classList.add("active");
+  document.getElementById("repContent").innerHTML =
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Analyzing reputation&hellip;</p><p class="load-sub">Reading across all mentions and weighing how recent each one is. This may take up to a minute.</p></div>';
+
+  var today = new Date().toDateString();
+  var prompt = "You are a brand-reputation analyst for Honor Health Network, a home care company. Today's date is " + today + ".\n\n" +
+    "Below is a JSON list of real third-party mentions found across the web about Honor-owned agencies, brands, and people. Each has: agency, title, summary, sentiment, platform, source, and date (the date may be an empty string if it could not be determined).\n\n" +
+    "MENTIONS:\n" + JSON.stringify(repResults) + "\n\n" +
+    "Write an executive reputation briefing covering:\n" +
+    "1. OVERALL: in one short paragraph, how Honor's brands come off right now and the balance of positive vs negative.\n" +
+    "2. BY AREA: for EACH agency/brand/person that appears in the mentions, a short assessment of how they come off, the recurring themes (good and bad), and the most damaging or notable items.\n" +
+    "3. RECENCY: weigh recent mentions more heavily than older ones relative to today's date. Explicitly flag when a negative is recent (an active problem) versus years old (likely stale). Where a date is missing, say the timing is unclear. Call out any area where the negativity looks recent or worsening.\n" +
+    "4. PRIORITIES: the 2-3 areas that need attention first, based on BOTH severity and recency.\n\n" +
+    "Base everything ONLY on the mentions provided \u2014 do not invent facts or search the web. Format as paragraphs with bold section headers using **Header** syntax. Cite the agency names and what reviewers actually said. Write for a senior executive.";
+
+  try {
+    var text = await callAPI(prompt, { noTools: true });
+    repAnalysis = text
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .split("\n\n")
+      .map(function(p) { return "<p>" + p.replace(/\n/g, "<br>") + "</p>"; })
+      .join("");
+    renderRepAnalysis();
+    document.getElementById("lastUpdated").textContent = "Last run: " + new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  } catch(err) {
+    repShowError(err.message);
+    renderRepAnalysis();
+  } finally {
+    btn.disabled = false; btn.innerHTML = "&#10022; Reputation Analyzer";
+  }
+}
+
 function repLoading(done, total) {
   document.getElementById("repContent").innerHTML =
     '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Scanning for mentions&hellip;</p><p class="load-sub">Batch ' + done + ' of ' + total + ' &middot; searching your selected channels. Results appear here as they come in.</p></div>';
@@ -897,8 +972,9 @@ function repPrompt(watchStr, dateLabel, channelStr, exclStr) {
     "ONLY search these channels: " + channelStr + ". (News = news outlets and press; Web = general web pages and blogs; Reddit = reddit threads; YouTube = video titles, descriptions, and comments; Reviews = review sites such as Google, Yelp, Indeed, Glassdoor.)\n\n" +
     "STRICT EXCLUSIONS: Do NOT include content published by Honor itself. Ignore anything from these owned properties and their own social accounts: " + exclStr + ". We want what OTHER people, customers, employees, reviewers, and outlets are saying \u2014 not our own marketing or job postings.\n\n" +
     "Prioritize negative or critical mentions: complaints, bad reviews, lawsuits, regulatory actions, layoffs, or negative press. Then include notable positive and neutral mentions. If you find nothing for a name, skip it.\n\n" +
+    "DATE RULES: For News, Reddit, and YouTube items, only include ones published within the " + dateLabel + ". Review-site entries may be included even if older, since reputation issues persist. For the date field, give the real publication date as \"Month Year\" only if you can actually determine it; if you cannot, use an empty string \"\". Never write \"unknown\" or a guessed date.\n\n" +
     "Return ONLY a raw JSON array, no markdown, no code fences. If you find nothing at all, return []. Each item has these exact keys:\n" +
-    "{\"agency\":\"which watchlist name this is about\",\"title\":\"headline or post title\",\"summary\":\"2-3 sentence summary of what was actually said\",\"sentiment\":\"positive|negative|neutral\",\"platform\":\"News|Reddit|YouTube|Web|Reviews|Other\",\"source\":\"site or outlet name\",\"date\":\"month year\",\"url\":\"direct url or empty string\"}";
+    "{\"agency\":\"which watchlist name this is about\",\"title\":\"headline or post title\",\"summary\":\"2-3 sentence summary of what was actually said\",\"sentiment\":\"positive|negative|neutral\",\"platform\":\"News|Reddit|YouTube|Web|Reviews|Other\",\"source\":\"site or outlet name\",\"date\":\"Month Year or empty string\",\"url\":\"direct url or empty string\"}";
 }
 
 async function runReputation() {
@@ -907,6 +983,9 @@ async function runReputation() {
   if (selChannels.size === 0) { repShowError("Select at least one channel.");        return; }
   var btn = document.getElementById("repBtn");
   btn.disabled = true; btn.textContent = "Scanning\u2026";
+  repTab = "mentions";
+  document.getElementById("rtab-mentions").classList.add("active");
+  document.getElementById("rtab-analysis").classList.remove("active");
 
   var months    = document.getElementById("repDateRange").value;
   var dateLabel = months === "1" ? "last 30 days" : months === "3" ? "last 3 months" : months === "6" ? "last 6 months" : "last 12 months";
