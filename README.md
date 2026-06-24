@@ -2,6 +2,8 @@
 
 Medicaid, home care, and community-based services monitoring dashboard. Pulls live web results across selected states and federal scope using the Anthropic API.
 
+The dashboard is protected by a login. Set the username/password via the `AUTH_USER` and `AUTH_PASS` environment variables (see `.env.example`). Without a valid session, the page and the API both return to the login screen.
+
 ---
 
 ## Deploy to Railway (recommended — ~5 minutes)
@@ -11,6 +13,9 @@ Medicaid, home care, and community-based services monitoring dashboard. Pulls li
 3. Push this folder to a GitHub repo and connect it, or use "Deploy from local" with the Railway CLI
 4. In Railway, go to your project → Variables → add:
    - `ANTHROPIC_API_KEY` = your key from console.anthropic.com
+   - `AUTH_USER` = the login username
+   - `AUTH_PASS` = the login password
+   - `SESSION_SECRET` = a long random string (signs login cookies)
 5. Railway auto-detects Node.js and runs `npm start`
 6. Click the generated URL — done
 
