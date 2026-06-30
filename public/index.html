@@ -346,6 +346,7 @@
   <div class="mode-switch">
     <button id="mode-policy" class="mode-btn active" onclick="switchMode('policy')">Policy Intelligence</button>
     <button id="mode-reputation" class="mode-btn" onclick="switchMode('reputation')">Reputation Watch</button>
+    <button id="mode-fraud" class="mode-btn" onclick="switchMode('fraud')">Medicaid Fraud</button>
   </div>
   <span id="lastUpdated"></span>
 </header>
@@ -407,6 +408,31 @@
     <button class="predict-btn" id="repAnalyzeBtn" onclick="runRepAnalysis()">&#10022; Reputation Analyzer</button>
   </aside>
 
+  <!-- ═══ FRAUD SIDEBAR ═══ -->
+  <aside id="sidebar-fraud" style="display:none">
+    <div>
+      <div class="sidebar-label">Focus</div>
+      <div id="fraudCatFilters"></div>
+    </div>
+    <div>
+      <div class="sidebar-label">Date Range</div>
+      <select class="styled" id="fraudDateRange">
+        <option value="1">Last 30 days</option>
+        <option value="3" selected>Last 3 months</option>
+        <option value="6">Last 6 months</option>
+        <option value="12">Last 12 months</option>
+      </select>
+    </div>
+    <div>
+      <div class="sidebar-label">Scope</div>
+      <input class="state-search" type="text" id="fraudStateSearch" placeholder="Search states&hellip;" oninput="filterFraudStates(this.value)">
+      <div class="state-scroll" id="fraudStateList"></div>
+      <p class="sel-count" id="fraudSelCount">0 selected</p>
+    </div>
+    <button class="run-btn" id="fraudBtn" onclick="runFraud()">Scan for fraud</button>
+    <button class="predict-btn" id="fraudAnalyzeBtn" onclick="runFraudAnalysis()">&#10022; Fraud Brief</button>
+  </aside>
+
   <!-- Main Content -->
   <main>
 
@@ -439,6 +465,20 @@
       </div>
       <div class="error-banner" id="repError"></div>
       <div id="repContent"></div>
+    </div>
+
+    <!-- ═══ FRAUD MAIN ═══ -->
+    <div id="main-fraud" style="display:none">
+      <div class="main-header">
+        <h1>Medicaid Fraud Monitor</h1>
+        <p>Indictments, settlements, audits &amp; enforcement actions across Medicaid &mdash; federal &amp; state</p>
+      </div>
+      <div class="tab-row">
+        <button class="tab active" id="ftab-cases" onclick="switchFraudTab('cases')">Cases</button>
+        <button class="tab" id="ftab-analysis" onclick="switchFraudTab('analysis')" style="display:none">&#10022; Fraud Brief</button>
+      </div>
+      <div class="error-banner" id="fraudError"></div>
+      <div id="fraudContent"></div>
     </div>
 
   </main>
@@ -796,12 +836,11 @@ async function runPrediction() {
 // ── Reputation Watch ──
 function switchMode(mode) {
   appMode = mode;
-  document.getElementById("mode-policy").classList.toggle("active", mode === "policy");
-  document.getElementById("mode-reputation").classList.toggle("active", mode === "reputation");
-  document.getElementById("sidebar-policy").style.display     = mode === "policy" ? "" : "none";
-  document.getElementById("sidebar-reputation").style.display = mode === "reputation" ? "" : "none";
-  document.getElementById("main-policy").style.display        = mode === "policy" ? "" : "none";
-  document.getElementById("main-reputation").style.display    = mode === "reputation" ? "" : "none";
+  ["policy", "reputation", "fraud"].forEach(function(m) {
+    document.getElementById("mode-" + m).classList.toggle("active", m === mode);
+    document.getElementById("sidebar-" + m).style.display = m === mode ? "" : "none";
+    document.getElementById("main-" + m).style.display    = m === mode ? "" : "none";
+  });
 }
 
 // Names list — uses array index as id so duplicate names (e.g. two Angels On Call) stay distinct
@@ -1035,9 +1074,223 @@ async function runReputation() {
   btn.disabled = false; btn.textContent = "Scan for mentions";
 }
 
+// ── Medicaid Fraud ──
+const FRAUD_CATS = [
+  { id: "indictment",    label: "Indictments & charges"     },
+  { id: "settlement",    label: "Settlements & recoveries"  },
+  { id: "audit",         label: "Audits & OIG reports"      },
+  { id: "exclusion",     label: "Exclusions & license actions" },
+  { id: "whistleblower", label: "Whistleblower / qui tam"   },
+  { id: "homecare",      label: "Home care–specific"   }
+];
+const FRAUD_BADGE = {
+  "Indictment/Charges": "badge-red",
+  "Settlement":         "badge-green",
+  "Audit/OIG":          "badge-amber",
+  "Exclusion":          "badge-purple",
+  "Whistleblower":      "badge-pink",
+  "Other":              "badge-gray"
+};
+
+let selFraudCats   = new Set(FRAUD_CATS.map(function(c){ return c.id; }));
+let selFraudStates = new Set(["Federal/National"]);
+let fraudResults   = [];
+let fraudAnalysis  = "";
+let fraudTab       = "cases";
+
+function buildFraudCatFilters() {
+  var html = "";
+  for (var i = 0; i < FRAUD_CATS.length; i++) {
+    var c = FRAUD_CATS[i];
+    var checked = selFraudCats.has(c.id) ? "checked" : "";
+    html += '<label class="chk-row"><input type="checkbox" ' + checked + ' data-id="' + c.id + '" onchange="toggleFraudCat(this.dataset.id, this.checked)"> ' + c.label + '</label>';
+  }
+  document.getElementById("fraudCatFilters").innerHTML = html;
+}
+function toggleFraudCat(id, checked) { if (checked) selFraudCats.add(id); else selFraudCats.delete(id); }
+
+function buildFraudStateList(filter) {
+  filter = filter || "";
+  var html = "";
+  for (var i = 0; i < STATES.length; i++) {
+    var s = STATES[i];
+    if (s.toLowerCase().indexOf(filter.toLowerCase()) === -1) continue;
+    var checked = selFraudStates.has(s) ? "checked" : "";
+    html += '<label class="chk-row"><input type="checkbox" ' + checked + ' data-state="' + s.replace(/"/g, "&quot;") + '" onchange="toggleFraudState(this.dataset.state, this.checked)"> ' + s + '</label>';
+  }
+  document.getElementById("fraudStateList").innerHTML = html;
+  updateFraudCount();
+}
+function filterFraudStates(v) { buildFraudStateList(v); }
+function toggleFraudState(s, checked) { if (checked) selFraudStates.add(s); else selFraudStates.delete(s); updateFraudCount(); }
+function updateFraudCount() { document.getElementById("fraudSelCount").textContent = selFraudStates.size + " selected"; }
+
+function fraudShowError(msg) {
+  var b = document.getElementById("fraudError");
+  b.textContent = (typeof msg === "object") ? JSON.stringify(msg) : msg;
+  b.style.display = "block";
+}
+function fraudHideError() { document.getElementById("fraudError").style.display = "none"; }
+
+function fraudCardHTML(f) {
+  var sev = (f.severity || "low").toLowerCase();
+  var cb  = FRAUD_BADGE[f.category] || "badge-gray";
+  var dt  = (f.date || "").trim();
+  if (/unknown|^n\/?a$|null|undated/i.test(dt)) dt = "";
+  var src = [f.source, dt].filter(Boolean).join(" · ");
+  return '<div class="article-card ' + sev + '">' +
+    '<div class="card-meta">' +
+    '<span class="badge badge-pink">' + (f.state || "Federal/National") + '</span>' +
+    '<span class="badge ' + cb + '">' + (f.category || "Other") + '</span>' +
+    (f.amount ? '<span class="badge badge-green">' + f.amount + '</span>' : '') +
+    (sev === "high" ? '<span class="badge badge-red">High severity</span>' : '') +
+    '<span class="card-source">' + src + '</span>' +
+    '</div>' +
+    '<p class="card-title">' + (f.title || "") + '</p>' +
+    '<p class="card-summary">' + (f.summary || "") + '</p>' +
+    (f.url && f.url.indexOf("http") === 0 ? '<a class="card-link" href="' + f.url + '" target="_blank">&#8599; Read source</a>' : '') +
+    '</div>';
+}
+
+function renderFraud() {
+  if (!fraudResults || !fraudResults.length) {
+    document.getElementById("fraudContent").innerHTML =
+      '<div class="empty-state"><div class="empty-icon">&#9878;</div><h2>No scan yet</h2><p>Pick your focus areas, date range, and states on the left, then click <strong>Scan for fraud</strong>.</p></div>';
+    return;
+  }
+  var order = { high: 0, medium: 1, low: 2 };
+  var sorted = fraudResults.slice().sort(function(a, b) {
+    var oa = order[(a.severity || "low").toLowerCase()]; if (oa === undefined) oa = 2;
+    var ob = order[(b.severity || "low").toLowerCase()]; if (ob === undefined) ob = 2;
+    return oa - ob;
+  });
+  var cards = "";
+  for (var i = 0; i < sorted.length; i++) cards += fraudCardHTML(sorted[i]);
+  document.getElementById("fraudContent").innerHTML =
+    '<div class="results-meta"><span>' + fraudResults.length + ' case' + (fraudResults.length !== 1 ? "s" : "") + ' found</span>' +
+    '<div class="legend">' +
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>High</span>' +
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span>Medium</span>' +
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Low</span>' +
+    '</div></div>' +
+    '<div class="articles-grid">' + cards + '</div>';
+}
+
+function switchFraudTab(tab) {
+  fraudTab = tab;
+  document.getElementById("ftab-cases").classList.toggle("active", tab === "cases");
+  document.getElementById("ftab-analysis").classList.toggle("active", tab === "analysis");
+  fraudHideError();
+  if (tab === "cases") renderFraud();
+  else renderFraudAnalysis();
+}
+
+function renderFraudAnalysis() {
+  if (!fraudAnalysis) {
+    document.getElementById("fraudContent").innerHTML =
+      '<div class="empty-state"><div class="empty-icon">&#10022;</div><h2>No brief yet</h2><p>Run a scan first, then click <strong>Fraud Brief</strong> for an AI summary of the enforcement landscape and what home care operators should watch.</p></div>';
+    return;
+  }
+  var ts = new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  document.getElementById("fraudContent").innerHTML =
+    '<div class="prediction-box"><h3>&#10022; Medicaid Fraud Brief</h3><p class="pred-meta">Generated ' + ts + ' &middot; Based on ' + fraudResults.length + ' case' + (fraudResults.length !== 1 ? "s" : "") + '</p>' + fraudAnalysis + '</div>';
+}
+
+async function runFraud() {
+  fraudHideError();
+  if (selFraudStates.size === 0) { fraudShowError("Select at least one state or scope."); return; }
+  if (selFraudCats.size === 0)   { fraudShowError("Select at least one focus area.");     return; }
+  var btn = document.getElementById("fraudBtn");
+  btn.disabled = true; btn.textContent = "Scanning…";
+  fraudTab = "cases";
+  document.getElementById("ftab-cases").classList.add("active");
+  document.getElementById("ftab-analysis").classList.remove("active");
+  document.getElementById("fraudContent").innerHTML =
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Scanning for fraud cases&hellip;</p><p class="load-sub">Searching indictments, settlements, audits, and enforcement actions. This may take up to a minute.</p></div>';
+
+  var months    = document.getElementById("fraudDateRange").value;
+  var dateLabel = months === "1" ? "last 30 days" : months === "3" ? "last 3 months" : months === "6" ? "last 6 months" : "last 12 months";
+  var statesStr = Array.from(selFraudStates).join(", ");
+  var catsStr   = FRAUD_CATS.filter(function(c){ return selFraudCats.has(c.id); }).map(function(c){ return c.label; }).join(", ");
+
+  var prompt = "Search the web for Medicaid fraud cases, enforcement actions, and related news from the " + dateLabel + " in: " + statesStr + ".\n" +
+    "Focus on these areas: " + catsStr + ".\n" +
+    "Include criminal indictments and charges, civil False Claims Act settlements and recoveries, HHS-OIG audits and reports, DOJ and state Medicaid Fraud Control Unit (MFCU) actions, provider exclusions and license revocations, and whistleblower / qui tam cases. Give extra weight to fraud involving home care, home health, HCBS, personal care, and adult day care when present.\n" +
+    "Only include items from the " + dateLabel + ". Return ONLY a raw JSON array, no markdown, no fences. Up to 12 items each with these exact keys:\n" +
+    "{\"title\":\"headline\",\"summary\":\"2-3 sentences on who, what, and the alleged scheme\",\"state\":\"state or Federal/National\",\"category\":\"Indictment/Charges|Settlement|Audit/OIG|Exclusion|Whistleblower|Other\",\"amount\":\"dollar amount involved or empty string\",\"date\":\"month year\",\"source\":\"name\",\"url\":\"url or empty string\",\"severity\":\"high|medium|low\"}";
+
+  try {
+    var text  = await callAPI(prompt);
+    var clean = text.replace(/```json|```/g, "").trim();
+    var match = clean.match(/\[[\s\S]*\]/);
+    var data  = JSON.parse(match ? match[0] : clean);
+    if (Array.isArray(data)) {
+      fraudResults = data;
+      renderFraud();
+      document.getElementById("lastUpdated").textContent = "Last run: " + new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+    } else {
+      fraudShowError("Unexpected response format. Please try again.");
+      renderFraud();
+    }
+  } catch(err) {
+    fraudShowError(err.message);
+    renderFraud();
+  } finally {
+    btn.disabled = false; btn.textContent = "Scan for fraud";
+  }
+}
+
+async function runFraudAnalysis() {
+  fraudHideError();
+  document.getElementById("ftab-analysis").style.display = "";
+  if (!fraudResults.length) {
+    switchFraudTab("analysis");
+    fraudShowError("Run a scan first — the brief reads across the cases you've found.");
+    return;
+  }
+  var btn = document.getElementById("fraudAnalyzeBtn");
+  btn.disabled = true; btn.textContent = "Analyzing…";
+  fraudTab = "analysis";
+  document.getElementById("ftab-cases").classList.remove("active");
+  document.getElementById("ftab-analysis").classList.add("active");
+  document.getElementById("fraudContent").innerHTML =
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Writing the fraud brief&hellip;</p><p class="load-sub">Reading across all cases and weighing severity and recency. This may take up to a minute.</p></div>';
+
+  var today = new Date().toDateString();
+  var prompt = "You are a Medicaid program-integrity analyst writing for home care operators. Today's date is " + today + ".\n\n" +
+    "Below is a JSON list of real Medicaid fraud cases and enforcement actions. Each has: title, summary, state, category, amount, date, source, severity.\n\n" +
+    "CASES:\n" + JSON.stringify(fraudResults) + "\n\n" +
+    "Write a SHORT, scannable executive brief — aim for UNDER 250 words. Be factual, not alarmist. Do not search the web or add outside cases — only use what's above.\n\n" +
+    "Use exactly these three short sections, each label in **bold**, no markdown headers or # signs:\n" +
+    "**Bottom line:** one or two sentences plus the count (e.g. '10 cases: 3 high severity').\n" +
+    "**Patterns:** the main schemes, provider types, and states showing up — a few sentences. Flag anything involving home care, home health, HCBS, personal care, or adult day care.\n" +
+    "**Watch first:** the single most important compliance takeaway for a home care operator, in one sentence.\n\n" +
+    "Weigh recent and high-severity cases more heavily. Keep it tight.";
+
+  try {
+    var text = await callAPI(prompt, { noTools: true });
+    fraudAnalysis = text
+      .replace(/^#{1,6}\s*/gm, "")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .split("\n\n")
+      .map(function(p) { return "<p>" + p.replace(/\n/g, "<br>") + "</p>"; })
+      .join("");
+    renderFraudAnalysis();
+    document.getElementById("lastUpdated").textContent = "Last run: " + new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  } catch(err) {
+    fraudShowError(err.message);
+    renderFraudAnalysis();
+  } finally {
+    btn.disabled = false; btn.innerHTML = "&#10022; Fraud Brief";
+  }
+}
+
 // ── Init ──
 buildTopicFilters();
 buildStateList();
+buildFraudCatFilters();
+buildFraudStateList();
+renderFraud();
 updateBmCount();
 renderArticles([]);
 
