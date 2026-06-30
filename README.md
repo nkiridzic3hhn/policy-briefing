@@ -56,3 +56,31 @@ Each briefing run costs roughly $0.01–0.03 in Anthropic API usage depending on
 2. Sign up or log in
 3. API Keys → Create Key
 4. Copy and paste into your deployment's environment variables
+
+---
+
+## Newsletter
+
+People sign up at **`/subscribe`** (a public page, no login) and pick which areas
+they want — Policy Intelligence, Reputation Watch, Medicaid Fraud. Every **Monday
+& Thursday** a job generates each chosen area's digest once and emails everyone a
+branded HTML briefing. Every email has a one-click unsubscribe link.
+
+**Moving parts**
+
+- **Database** — Postgres (`DATABASE_URL`) stores subscribers + preferences. On
+  Railway, add the Postgres plugin and reference its `DATABASE_URL`.
+- **Email** — Resend (`RESEND_API_KEY`, `FROM_EMAIL`). The sending domain must be
+  verified in Resend (add the DKIM/SPF DNS records it gives you).
+- **Schedule** — a Railway cron service runs `node jobs/newsletter.js` on
+  `0 13 * * 1,4` (Mon & Thu, 13:00 UTC ≈ 9am ET).
+
+**Test a send without waiting for the schedule**
+
+- While logged in: `POST /api/newsletter/run` (e.g. from the browser console:
+  `fetch('/api/newsletter/run',{method:'POST'}).then(r=>r.json()).then(console.log)`)
+- Or locally: `npm run newsletter`
+
+Results (sent / skipped / failed) are printed to the logs. Subscribers whose
+chosen areas turned up nothing that edition are skipped rather than emailed an
+empty briefing.

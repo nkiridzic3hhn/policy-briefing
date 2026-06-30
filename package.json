@@ -4,11 +4,13 @@
   "description": "Medicaid & home care policy intelligence dashboard",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "newsletter": "node jobs/newsletter.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "express-session": "^1.18.0"
+    "express-session": "^1.18.0",
+    "pg": "^8.11.5"
   },
   "engines": {
     "node": ">=18"

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subscribe · Piece of Pi</title>
+  <link rel="icon" href="/favicon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#ffffff; --surface:#fdf2f5; --surface2:#f9e6ec; --border:rgba(180,60,90,0.15);
+      --border-hover:rgba(180,60,90,0.3); --text:#2a0f18; --muted:#8a4055; --dim:#b8788a;
+      --accent:#c03060; --radius:8px; --radius-lg:14px;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'IBM Plex Sans',sans-serif; background:#f4e9ed; color:var(--text);
+      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+    .card { width:100%; max-width:480px; background:var(--bg); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:32px 30px; }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+    .brand img { height:48px; width:auto; }
+    h1 { font-size:20px; font-weight:600; margin-top:14px; }
+    .sub { font-size:13px; color:var(--muted); margin-top:4px; margin-bottom:22px; line-height:1.5; }
+    label.field { display:block; font-size:12px; font-weight:600; color:var(--muted);
+      text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+    input[type=email] { width:100%; padding:11px 13px; font-size:14px; font-family:inherit;
+      background:#fff; color:var(--text); border:1px solid var(--border); border-radius:var(--radius); outline:none; }
+    input[type=email]:focus { border-color:var(--border-hover); }
+    .areas { margin:22px 0 8px; display:flex; flex-direction:column; gap:10px; }
+    .area { display:flex; gap:12px; align-items:flex-start; padding:14px; border:1px solid var(--border);
+      border-radius:var(--radius); cursor:pointer; transition:border-color .15s, background .15s; }
+    .area:hover { border-color:var(--border-hover); }
+    .area.on { border-color:var(--accent); background:var(--surface); }
+    .area input { margin-top:3px; accent-color:var(--accent); cursor:pointer; }
+    .area .a-title { font-size:14px; font-weight:600; color:var(--text); }
+    .area .a-desc { font-size:12px; color:var(--dim); margin-top:2px; line-height:1.5; }
+    button { width:100%; margin-top:18px; padding:12px; font-size:14px; font-weight:600;
+      font-family:inherit; background:var(--accent); color:#fff; border:none; border-radius:var(--radius);
+      cursor:pointer; transition:opacity .15s; }
+    button:hover { opacity:.9; }
+    button:disabled { opacity:.6; cursor:default; }
+    .cadence { font-size:12px; color:var(--dim); text-align:center; margin-top:14px; }
+    .msg { margin-top:16px; font-size:13px; min-height:18px; }
+    .msg.err { color:#b02040; }
+    .msg.ok { color:#1f7d52; }
+    .success { text-align:center; padding:10px 0; }
+    .success .big { font-size:34px; }
+    .success h2 { font-size:18px; margin:10px 0 6px; }
+    .success p { font-size:13px; color:var(--muted); line-height:1.6; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="brand"><img src="/logo.png" alt="Piece of Pi" /></div>
+    <h1>Get the Piece of Pi briefing</h1>
+    <p class="sub">Medicaid, home care &amp; community-based services intelligence — delivered to your inbox every <strong>Monday &amp; Thursday</strong>. Choose what you want to follow.</p>
+
+    <form id="form">
+      <label class="field" for="email">Your work email</label>
+      <input id="email" type="email" placeholder="you@honorhealthnetwork.com" autocomplete="email" required />
+
+      <div class="areas" id="areas">
+        <label class="area on" data-area="policy">
+          <input type="checkbox" checked />
+          <span><span class="a-title">Policy Intelligence</span><span class="a-desc">Regulation &amp; policy changes across Medicaid, home care, HCBS, EVV, workforce &amp; funding.</span></span>
+        </label>
+        <label class="area on" data-area="reputation">
+          <input type="checkbox" checked />
+          <span><span class="a-title">Reputation Watch</span><span class="a-desc">What people are saying about Honor Health Network agencies &amp; brands across the web.</span></span>
+        </label>
+        <label class="area on" data-area="fraud">
+          <input type="checkbox" checked />
+          <span><span class="a-title">Medicaid Fraud</span><span class="a-desc">Indictments, settlements, OIG audits &amp; enforcement actions — home care weighted.</span></span>
+        </label>
+      </div>
+
+      <button type="submit" id="submit">Subscribe</button>
+      <div class="cadence">Delivered Mondays &amp; Thursdays · unsubscribe anytime</div>
+      <div class="msg" id="msg"></div>
+    </form>
+  </div>
+
+  <script>
+    // Toggle highlight state
+    document.querySelectorAll(".area").forEach(function (el) {
+      var box = el.querySelector("input");
+      function sync() { el.classList.toggle("on", box.checked); }
+      box.addEventListener("change", sync);
+    });
+
+    var form = document.getElementById("form");
+    var msg = document.getElementById("msg");
+    var btn = document.getElementById("submit");
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      msg.className = "msg"; msg.textContent = "";
+      var email = document.getElementById("email").value.trim();
+      var areas = [];
+      document.querySelectorAll(".area").forEach(function (el) {
+        if (el.querySelector("input").checked) areas.push(el.dataset.area);
+      });
+      if (!email) { msg.className = "msg err"; msg.textContent = "Enter your email."; return; }
+      if (!areas.length) { msg.className = "msg err"; msg.textContent = "Pick at least one area to follow."; return; }
+
+      btn.disabled = true; btn.textContent = "Subscribing…";
+      try {
+        var res = await fetch("/api/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, areas: areas })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (res.ok) {
+          document.getElementById("card").innerHTML =
+            '<div class="success"><div class="big">🥧</div><h2>You\'re in!</h2>' +
+            '<p>We\'ll send your first Piece of Pi briefing on the next Monday or Thursday. ' +
+            'Check your inbox — you can update or cancel anytime from any email.</p></div>';
+          return;
+        }
+        msg.className = "msg err";
+        msg.textContent = data.error || "Something went wrong. Please try again.";
+      } catch (_) {
+        msg.className = "msg err"; msg.textContent = "Network error. Please try again.";
+      }
+      btn.disabled = false; btn.textContent = "Subscribe";
+    });
+  </script>
+</body>
+</html>
