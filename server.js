@@ -17,6 +17,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const AUTH_USER = process.env.AUTH_USER || "";
 const AUTH_PASS = process.env.AUTH_PASS || "";
 
+// Separate credential for the newsletter admin portal (/admin). Distinct from the
+// dashboard login so newsletter management can be gated on its own.
+const ADMIN_USER = process.env.ADMIN_USER || "";
+const ADMIN_PASS = process.env.ADMIN_PASS || "";
+
 app.set("trust proxy", 1); // needed for secure cookies behind Railway/Render
 app.use(
   session({
@@ -120,6 +125,122 @@ app.get("/unsubscribe", async (req, res) => {
       ? `<strong>${email}</strong> won't receive any more Piece of Pi briefings. Changed your mind? <a href="/subscribe">Re-subscribe here</a>.`
       : `We couldn't find that unsubscribe link. It may have already been used. <a href="/subscribe">Manage your subscription</a>.`}</p>
     </div></body></html>`);
+});
+
+// --- Newsletter admin portal (separate credential, its own gate) ---
+function requireAdmin(req, res, next) {
+  if (req.session && req.session.admin) return next();
+  if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Not authenticated" });
+  return res.redirect("/admin/login");
+}
+
+// Sample content used by the email design preview (no API calls, instant).
+const SAMPLE_DIGESTS = {
+  policy: [
+    { title: "CMS finalizes Access Rule 80/20 pass-through for HCBS", summary: "The final rule requires 80% of Medicaid payments for homemaker, home health aide, and personal care services to go to direct-care worker compensation. States have a multi-year phase-in.", state: "Federal/National", topic: "HCBS/Waivers", date: "March 2026", source: "CMS.gov", url: "https://www.cms.gov", urgency: "high" },
+    { title: "State budget adds $120M for home care rate increase", summary: "The enacted budget raises personal care reimbursement rates by an average of 6% and funds a wage floor for aides.", state: "New York", topic: "Budget/Funding", date: "April 2026", source: "State Health Dept", url: "", urgency: "medium" }
+  ],
+  fraud: [
+    { title: "Home care agency owner charged in $9M personal-care billing scheme", summary: "DOJ alleges the owner billed Medicaid for services not rendered and paid kickbacks for beneficiary referrals over four years.", state: "New Jersey", category: "Indictment/Charges", amount: "$9M", date: "April 2026", source: "DOJ", url: "https://www.justice.gov", severity: "high" },
+    { title: "HHS-OIG report flags EVV gaps in personal care programs", summary: "Audit found several states could not verify a portion of billed personal-care visits against electronic visit verification records.", state: "Federal/National", category: "Audit/OIG", amount: "", date: "March 2026", source: "HHS-OIG", url: "", severity: "medium" }
+  ],
+  reputation: [
+    { agency: "Quality Healthcare", title: "Mixed reviews on caregiver scheduling", summary: "Recent reviews praise individual aides but raise concerns about last-minute schedule changes and call-center wait times.", sentiment: "negative", platform: "Reviews", source: "Google Reviews", date: "April 2026", url: "" },
+    { agency: "CaringPays", title: "Local news features paid-family-caregiver program", summary: "A regional outlet profiled a family using the program, describing it positively as a way to compensate relatives who provide care.", sentiment: "positive", platform: "News", source: "Local News", date: "March 2026", url: "" }
+  ]
+};
+
+app.get("/admin/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin-login.html"));
+});
+
+app.post("/api/admin/login", (req, res) => {
+  if (!ADMIN_USER || !ADMIN_PASS) return res.status(503).json({ error: "Admin login is not configured. Set ADMIN_USER and ADMIN_PASS." });
+  const { username, password } = req.body || {};
+  if (safeEqual(username, ADMIN_USER) && safeEqual(password, ADMIN_PASS)) {
+    req.session.admin = true;
+    return res.json({ ok: true });
+  }
+  res.status(401).json({ error: "Invalid username or password." });
+});
+
+app.post("/api/admin/logout", (req, res) => {
+  if (req.session) req.session.admin = false;
+  res.json({ ok: true });
+});
+
+app.get("/admin", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
+
+// Helper: admin + DB-guard wrapper for JSON APIs.
+function adminApi(handler) {
+  return [requireAdmin, (req, res) => {
+    if (!DB_ENABLED) return res.status(503).json({ error: "Database not configured." });
+    Promise.resolve(handler(req, res)).catch(err => { console.error("admin api error:", err); res.status(500).json({ error: err.message }); });
+  }];
+}
+
+app.get("/api/admin/stats", ...adminApi(async (req, res) => {
+  res.json(await db.subscriberStats());
+}));
+
+app.get("/api/admin/subscribers", ...adminApi(async (req, res) => {
+  const rows = await db.listSubscribers({ search: req.query.search || "", status: req.query.status || "" });
+  res.json({ subscribers: rows });
+}));
+
+app.patch("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const body = req.body || {};
+  const patch = {};
+  if (Array.isArray(body.areas)) patch.areas = body.areas.filter(a => ["policy", "reputation", "fraud"].includes(a));
+  if (body.status === "active" || body.status === "unsubscribed") patch.status = body.status;
+  const row = await db.updateSubscriber(id, patch);
+  if (!row) return res.status(404).json({ error: "Not found or nothing to update." });
+  res.json({ subscriber: row });
+}));
+
+app.delete("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
+  const row = await db.deleteSubscriber(parseInt(req.params.id, 10));
+  if (!row) return res.status(404).json({ error: "Not found." });
+  res.json({ ok: true, email: row.email });
+}));
+
+app.get("/api/admin/subscribers.csv", ...adminApi(async (req, res) => {
+  const rows = await db.listSubscribers({});
+  const esc = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const lines = ["email,areas,status,joined"];
+  rows.forEach(r => lines.push([esc(r.email), esc((r.areas || []).join("|")), esc(r.status), esc(new Date(r.created_at).toISOString())].join(",")));
+  res.set("Content-Type", "text/csv");
+  res.set("Content-Disposition", 'attachment; filename="piece-of-pi-subscribers.csv"');
+  res.send(lines.join("\n"));
+}));
+
+app.get("/api/admin/sends", ...adminApi(async (req, res) => {
+  res.json({ sends: await db.listSends(50) });
+}));
+
+app.get("/api/admin/sends/:id", ...adminApi(async (req, res) => {
+  const send = await db.getSend(parseInt(req.params.id, 10));
+  if (!send) return res.status(404).json({ error: "Not found." });
+  res.json({ send });
+}));
+
+app.post("/api/admin/send", ...adminApi(async (req, res) => {
+  const { runNewsletter } = require("./jobs/newsletter");
+  const result = await runNewsletter({ trigger: "manual" });
+  res.json({ ok: true, result });
+}));
+
+app.get("/api/admin/preview", requireAdmin, (req, res) => {
+  const areas = String(req.query.areas || "policy,reputation,fraud").split(",").map(s => s.trim()).filter(Boolean);
+  const { html } = renderEmail(
+    { email: "preview@pieceofpi.app", areas, token: "preview" },
+    SAMPLE_DIGESTS,
+    { appUrl: process.env.APP_URL || "https://www.pieceofpi.app", dateStr: "Preview edition" }
+  );
+  res.set("Content-Type", "text/html").send(html);
 });
 
 // --- Auth gate: everything below requires a logged-in session ---

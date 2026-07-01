@@ -75,6 +75,20 @@ branded HTML briefing. Every email has a one-click unsubscribe link.
 - **Schedule** — a Railway cron service runs `node jobs/newsletter.js` on
   `0 13 * * 1,4` (Mon & Thu, 13:00 UTC ≈ 9am ET).
 
+## Admin portal
+
+`/admin` (gated by a **separate** credential — `ADMIN_USER` / `ADMIN_PASS`, not the
+dashboard login) provides:
+
+- **Subscribers** — searchable list with live counts, edit a subscriber's areas,
+  unsubscribe / reactivate / remove, and CSV export.
+- **Send history** — every edition is logged (`sends` + `send_recipients` tables):
+  when, cron vs manual, per-area item counts, and sent / skipped / failed with a
+  per-recipient drill-in.
+- **Send now** — trigger an edition on demand (also logged to history).
+- **Preview email** — renders the branded email design with sample data, instantly,
+  no API cost.
+
 **Test a send without waiting for the schedule**
 
 - While logged in: `POST /api/newsletter/run` (e.g. from the browser console:

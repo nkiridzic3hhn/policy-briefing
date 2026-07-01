@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Newsletter Admin · Piece of Pi</title>
+  <link rel="icon" href="/favicon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#fff; --surface:#fdf2f5; --surface2:#f9e6ec; --border:rgba(180,60,90,0.15); --border-hover:rgba(180,60,90,0.3);
+      --text:#2a0f18; --muted:#8a4055; --dim:#b8788a; --accent:#c03060; --accent-dim:rgba(192,48,96,0.1);
+      --red:#b02040; --red-dim:rgba(176,32,64,0.1); --green:#1f7d52; --green-dim:rgba(46,158,107,0.12);
+      --amber:#a06020; --radius:8px; --radius-lg:12px;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.55; }
+    header { border-bottom:1px solid var(--border); padding:0 1.5rem; height:64px; display:flex; align-items:center;
+      justify-content:space-between; position:sticky; top:0; background:#fff; z-index:50; }
+    .logo { display:flex; align-items:center; gap:10px; }
+    .logo img { height:40px; }
+    .logo b { font-size:15px; } .logo span { font-size:10px; color:var(--dim); display:block; }
+    .hdr-actions { display:flex; gap:8px; align-items:center; }
+    button { font-family:inherit; cursor:pointer; border-radius:var(--radius); font-size:13px; font-weight:600; border:1px solid transparent; }
+    .btn-primary { background:var(--accent); color:#fff; padding:9px 16px; }
+    .btn-primary:hover { opacity:.9; } .btn-primary:disabled { opacity:.5; cursor:default; }
+    .btn-ghost { background:none; color:var(--muted); border:1px solid var(--border); padding:9px 14px; }
+    .btn-ghost:hover { border-color:var(--border-hover); color:var(--text); }
+    .btn-sm { padding:5px 10px; font-size:12px; }
+    .btn-danger { background:none; color:var(--red); border:1px solid var(--red-dim); }
+    .btn-danger:hover { background:var(--red-dim); }
+    .wrap { max-width:1080px; margin:0 auto; padding:1.5rem; }
+    .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin-bottom:1.25rem; }
+    .stat { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; }
+    .stat .n { font-size:24px; font-weight:600; } .stat .l { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; }
+    .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:1rem; }
+    .tab { padding:8px 14px; background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); font-weight:500; }
+    .tab.active { color:var(--text); border-bottom-color:var(--accent); }
+    .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+    input.search, select.filter { padding:8px 11px; font-size:13px; font-family:inherit; background:var(--surface2);
+      border:1px solid var(--border); border-radius:var(--radius); color:var(--text); outline:none; }
+    input.search { flex:1; min-width:180px; }
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); padding:8px 10px; border-bottom:1px solid var(--border); }
+    td { padding:10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    tr:hover td { background:var(--surface); }
+    .chip { display:inline-block; font-size:11px; font-weight:500; padding:2px 8px; border-radius:4px; margin:0 4px 2px 0; background:var(--accent-dim); color:var(--accent); }
+    .badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px; }
+    .badge.active { background:var(--green-dim); color:var(--green); }
+    .badge.unsubscribed { background:rgba(0,0,0,0.06); color:var(--muted); }
+    .badge.done { background:var(--green-dim); color:var(--green); }
+    .badge.running { background:var(--accent-dim); color:var(--accent); }
+    .badge.error { background:var(--red-dim); color:var(--red); }
+    .mono { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
+    .row-actions { display:flex; gap:6px; justify-content:flex-end; }
+    .muted { color:var(--dim); font-size:13px; }
+    .empty { text-align:center; padding:3rem; color:var(--muted); }
+    .clickable { cursor:pointer; }
+    .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--text); color:#fff;
+      padding:10px 18px; border-radius:var(--radius); font-size:13px; z-index:100; opacity:0; transition:opacity .2s; pointer-events:none; }
+    .toast.show { opacity:1; }
+    .modal-bg { position:fixed; inset:0; background:rgba(42,15,24,0.4); display:none; align-items:center; justify-content:center; z-index:200; padding:20px; }
+    .modal-bg.show { display:flex; }
+    .modal { background:#fff; border-radius:var(--radius-lg); max-width:560px; width:100%; max-height:85vh; overflow-y:auto; padding:22px 24px; }
+    .modal h3 { font-size:16px; margin-bottom:4px; } .modal .sub { font-size:12px; color:var(--dim); margin-bottom:14px; }
+    .modal-close { float:right; background:none; border:none; font-size:20px; color:var(--dim); cursor:pointer; }
+    .rcpt { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; }
+    .rcpt .st-sent { color:var(--green); } .rcpt .st-failed { color:var(--red); } .rcpt .st-skipped { color:var(--dim); }
+    .area-edit label { display:inline-flex; align-items:center; gap:4px; font-size:12px; margin-right:8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="/logo.png" alt="Piece of Pi" onerror="this.style.display='none'" />
+      <div><b>Newsletter Admin</b><span>Piece of Pi</span></div>
+    </div>
+    <div class="hdr-actions">
+      <button class="btn-ghost" onclick="openPreview()">Preview email</button>
+      <button class="btn-primary" id="sendNowBtn" onclick="sendNow()">Send now</button>
+      <button class="btn-ghost btn-sm" onclick="logout()">Log out</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="stats" id="stats"></div>
+
+    <div class="tabs">
+      <button class="tab active" id="tab-subs" onclick="switchTab('subs')">Subscribers</button>
+      <button class="tab" id="tab-sends" onclick="switchTab('sends')">Send history</button>
+    </div>
+
+    <!-- Subscribers -->
+    <div id="panel-subs">
+      <div class="toolbar">
+        <input class="search" id="search" placeholder="Search email…" oninput="loadSubs()" />
+        <select class="filter" id="statusFilter" onchange="loadSubs()">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="unsubscribed">Unsubscribed</option>
+        </select>
+        <button class="btn-ghost btn-sm" onclick="exportCsv()">Export CSV</button>
+      </div>
+      <div id="subsTable"></div>
+    </div>
+
+    <!-- Send history -->
+    <div id="panel-sends" style="display:none">
+      <div id="sendsTable"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+    <div class="modal" id="modalBody"></div>
+  </div>
+
+  <script>
+    const AREA_LABELS = { policy: "Policy", reputation: "Reputation", fraud: "Fraud" };
+    let curTab = "subs";
+
+    function toast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2600);
+    }
+    function esc(s) { return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+    function fmtDate(d) { return new Date(d).toLocaleString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" }); }
+
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      if (res.status === 401) { window.location.href = "/admin/login"; throw new Error("auth"); }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ("Error " + res.status));
+      return data;
+    }
+
+    async function loadStats() {
+      const s = await api("/api/admin/stats");
+      const cells = [
+        ["Active", s.active], ["Policy", s.policy], ["Reputation", s.reputation],
+        ["Fraud", s.fraud], ["Unsubscribed", s.unsubscribed]
+      ];
+      document.getElementById("stats").innerHTML = cells.map(c =>
+        `<div class="stat"><div class="n">${c[1] || 0}</div><div class="l">${c[0]}</div></div>`).join("");
+    }
+
+    function areaChips(areas) { return (areas || []).map(a => `<span class="chip">${AREA_LABELS[a] || a}</span>`).join(""); }
+
+    async function loadSubs() {
+      const q = encodeURIComponent(document.getElementById("search").value || "");
+      const st = document.getElementById("statusFilter").value;
+      const data = await api(`/api/admin/subscribers?search=${q}&status=${st}`);
+      const rows = data.subscribers;
+      if (!rows.length) { document.getElementById("subsTable").innerHTML = '<div class="empty">No subscribers match.</div>'; return; }
+      let html = '<table><thead><tr><th>Email</th><th>Areas</th><th>Status</th><th>Joined</th><th></th></tr></thead><tbody>';
+      rows.forEach(r => {
+        html += `<tr data-id="${r.id}">
+          <td>${esc(r.email)}</td>
+          <td class="areas-cell">${areaChips(r.areas)}</td>
+          <td><span class="badge ${r.status}">${r.status}</span></td>
+          <td class="mono">${fmtDate(r.created_at)}</td>
+          <td><div class="row-actions">
+            <button class="btn-ghost btn-sm" onclick='editAreas(${r.id}, ${JSON.stringify(r.areas || [])})'>Edit</button>
+            ${r.status === "active"
+              ? `<button class="btn-ghost btn-sm" onclick="setStatus(${r.id},'unsubscribed')">Unsubscribe</button>`
+              : `<button class="btn-ghost btn-sm" onclick="setStatus(${r.id},'active')">Reactivate</button>`}
+            <button class="btn-danger btn-sm" onclick="removeSub(${r.id},'${esc(r.email)}')">Remove</button>
+          </div></td>
+        </tr>`;
+      });
+      html += "</tbody></table>";
+      document.getElementById("subsTable").innerHTML = html;
+    }
+
+    function editAreas(id, areas) {
+      const tr = document.querySelector(`tr[data-id="${id}"]`);
+      const cell = tr.querySelector(".areas-cell");
+      const has = a => areas.includes(a);
+      cell.innerHTML = `<span class="area-edit">
+        ${["policy","reputation","fraud"].map(a => `<label><input type="checkbox" value="${a}" ${has(a)?"checked":""}> ${AREA_LABELS[a]}</label>`).join("")}
+        <button class="btn-primary btn-sm" onclick="saveAreas(${id})">Save</button>
+        <button class="btn-ghost btn-sm" onclick="loadSubs()">Cancel</button>
+      </span>`;
+    }
+    async function saveAreas(id) {
+      const tr = document.querySelector(`tr[data-id="${id}"]`);
+      const areas = Array.from(tr.querySelectorAll(".area-edit input:checked")).map(i => i.value);
+      try { await api(`/api/admin/subscribers/${id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ areas }) });
+        toast("Areas updated"); loadSubs(); loadStats(); } catch(e){ toast(e.message); }
+    }
+    async function setStatus(id, status) {
+      try { await api(`/api/admin/subscribers/${id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ status }) });
+        toast("Status updated"); loadSubs(); loadStats(); } catch(e){ toast(e.message); }
+    }
+    async function removeSub(id, email) {
+      if (!confirm("Remove " + email + " permanently?")) return;
+      try { await api(`/api/admin/subscribers/${id}`, { method:"DELETE" }); toast("Removed"); loadSubs(); loadStats(); } catch(e){ toast(e.message); }
+    }
+    function exportCsv() { window.location.href = "/api/admin/subscribers.csv"; }
+
+    async function loadSends() {
+      const data = await api("/api/admin/sends");
+      const rows = data.sends;
+      if (!rows.length) { document.getElementById("sendsTable").innerHTML = '<div class="empty">No sends yet. Hit “Send now” to send an edition.</div>'; return; }
+      let html = '<table><thead><tr><th>When</th><th>Trigger</th><th>Items</th><th>Subs</th><th>Sent</th><th>Skipped</th><th>Failed</th><th>Status</th></tr></thead><tbody>';
+      rows.forEach(s => {
+        const items = Object.entries(s.item_counts || {}).map(([k,v]) => `${AREA_LABELS[k]||k}:${v}`).join(" ") || "—";
+        html += `<tr class="clickable" onclick="showSend(${s.id})">
+          <td class="mono">${fmtDate(s.created_at)}</td>
+          <td>${s.trigger}</td>
+          <td class="mono">${esc(items)}</td>
+          <td>${s.subscribers}</td>
+          <td style="color:var(--green)">${s.sent}</td>
+          <td class="muted">${s.skipped}</td>
+          <td style="color:${s.failed?'var(--red)':'inherit'}">${s.failed}</td>
+          <td><span class="badge ${s.status}">${s.status}</span></td>
+        </tr>`;
+      });
+      html += "</tbody></table>";
+      document.getElementById("sendsTable").innerHTML = html;
+    }
+
+    async function showSend(id) {
+      try {
+        const { send } = await api(`/api/admin/sends/${id}`);
+        const rcpts = (send.recipients || []).map(r =>
+          `<div class="rcpt"><span>${esc(r.email)}</span><span class="st-${r.status}">${r.status}${r.error?" · "+esc(r.error):""}</span></div>`).join("") || '<div class="muted">No recipient records.</div>';
+        document.getElementById("modalBody").innerHTML = `
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+          <h3>Send #${send.id}</h3>
+          <div class="sub">${fmtDate(send.created_at)} · ${send.trigger} · <span class="badge ${send.status}">${send.status}</span></div>
+          <p class="muted" style="margin-bottom:12px">Sent ${send.sent} · skipped ${send.skipped} · failed ${send.failed} of ${send.subscribers} subscribers.${send.error?" Error: "+esc(send.error):""}</p>
+          <div>${rcpts}</div>`;
+        document.getElementById("modalBg").classList.add("show");
+      } catch(e){ toast(e.message); }
+    }
+    function closeModal() { document.getElementById("modalBg").classList.remove("show"); }
+
+    function openPreview() { window.open("/api/admin/preview?areas=policy,reputation,fraud", "_blank"); }
+
+    async function sendNow() {
+      if (!confirm("Generate and send an edition to all active subscribers now?")) return;
+      const btn = document.getElementById("sendNowBtn");
+      btn.disabled = true; btn.textContent = "Sending… (up to a minute)";
+      try {
+        const { result } = await api("/api/admin/send", { method:"POST" });
+        toast(`Done — sent ${result.sent}, skipped ${result.skipped}, failed ${result.failed}`);
+        switchTab("sends"); loadSends();
+      } catch(e){ toast(e.message); }
+      btn.disabled = false; btn.textContent = "Send now";
+    }
+
+    async function logout() { await fetch("/api/admin/logout", { method:"POST" }); window.location.href = "/admin/login"; }
+
+    function switchTab(t) {
+      curTab = t;
+      document.getElementById("tab-subs").classList.toggle("active", t === "subs");
+      document.getElementById("tab-sends").classList.toggle("active", t === "sends");
+      document.getElementById("panel-subs").style.display = t === "subs" ? "" : "none";
+      document.getElementById("panel-sends").style.display = t === "sends" ? "" : "none";
+      if (t === "sends") loadSends();
+    }
+
+    // Init
+    loadStats().catch(e => toast(e.message));
+    loadSubs().catch(e => toast(e.message));
+  </script>
+</body>
+</html>

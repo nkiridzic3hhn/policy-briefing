@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · Piece of Pi</title>
+  <link rel="icon" href="/favicon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root { --bg:#fff; --surface:#fdf2f5; --border:rgba(180,60,90,0.15); --border-hover:rgba(180,60,90,0.3);
+      --text:#2a0f18; --muted:#8a4055; --dim:#b8788a; --accent:#c03060; --red:#b02040; --radius:8px; --radius-lg:12px; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { min-height:100vh; display:flex; align-items:center; justify-content:center;
+      font-family:'IBM Plex Sans',sans-serif; background:#f4e9ed; color:var(--text); padding:24px; }
+    .card { width:100%; max-width:380px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); padding:32px 28px; }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+    .brand img { width:36px; height:36px; border-radius:8px; }
+    .brand h1 { font-size:18px; font-weight:600; margin:0; }
+    .brand p { margin:2px 0 0; font-size:12px; color:var(--dim); }
+    label { display:block; font-size:12px; font-weight:500; color:var(--muted); margin:16px 0 6px; }
+    input { width:100%; padding:10px 12px; font-size:14px; font-family:inherit; background:#fff; color:var(--text);
+      border:1px solid var(--border); border-radius:var(--radius); outline:none; }
+    input:focus { border-color:var(--border-hover); }
+    button { width:100%; margin-top:22px; padding:11px; font-size:14px; font-weight:600; font-family:inherit;
+      background:var(--accent); color:#fff; border:none; border-radius:var(--radius); cursor:pointer; }
+    button:hover { opacity:.9; } button:disabled { opacity:.6; cursor:default; }
+    .error { margin-top:16px; font-size:13px; color:var(--red); min-height:16px; }
+  </style>
+</head>
+<body>
+  <form class="card" id="loginForm">
+    <div class="brand">
+      <img src="/logo.png" alt="" onerror="this.style.display='none'" />
+      <div><h1>Newsletter Admin</h1><p>Piece of Pi</p></div>
+    </div>
+    <label for="username">Username</label>
+    <input id="username" autocomplete="username" autofocus required />
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" required />
+    <button type="submit" id="submitBtn">Sign in</button>
+    <div class="error" id="error"></div>
+  </form>
+  <script>
+    const form = document.getElementById("loginForm"), err = document.getElementById("error"), btn = document.getElementById("submitBtn");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault(); err.textContent = ""; btn.disabled = true; btn.textContent = "Signing in…";
+      try {
+        const res = await fetch("/api/admin/login", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: document.getElementById("username").value, password: document.getElementById("password").value })
+        });
+        if (res.ok) { window.location.href = "/admin"; return; }
+        const data = await res.json().catch(() => ({}));
+        err.textContent = data.error || "Sign in failed.";
+      } catch (_) { err.textContent = "Network error. Try again."; }
+      btn.disabled = false; btn.textContent = "Sign in";
+    });
+  </script>
+</body>
+</html>
