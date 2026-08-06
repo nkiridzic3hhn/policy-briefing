@@ -1,17 +1,31 @@
-// Builds the branded HTML email for a subscriber from the generated digests.
-// Email-client-safe: table layout + inline styles, Piece of Pi pink palette.
+// Builds the branded weekly-snapshot HTML email from the generated digests.
+// Email-client-safe: table layout + inline styles (renders correctly in classic
+// Outlook, which uses Word's engine — no flexbox, no CSS classes, borders on
+// all sides). Piece of Pi pink palette.
 
 const PALETTE = {
+  page: "#f4e9ed",
   bg: "#ffffff",
   surface: "#fdf2f5",
   border: "#f1d6de",
+  divider: "#f7e4ea",
   text: "#2a0f18",
+  body: "#5c2a3a",
   muted: "#8a4055",
   dim: "#b8788a",
   accent: "#c03060",
   red: "#b02040",
-  amber: "#a06020",
-  green: "#1f7d52"
+  amber: "#a05a1c",
+  amberBg: "#fbe3cf",
+  green: "#1d7a54",
+  greenBg: "#e3f4ec",
+  blue: "#2a5ea8",
+  blueBg: "#e9f0fa",
+  gray: "#6b6353",
+  grayBg: "#f4f1ea",
+  purple: "#7b4fa8",
+  purpleBg: "#f3ecf9",
+  pinkBg: "#fce8ee"
 };
 
 function esc(s) {
@@ -20,126 +34,205 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
-function badge(text, color) {
-  return `<span style="display:inline-block;font-size:11px;font-weight:600;color:${color};background:${PALETTE.surface};border:1px solid ${PALETTE.border};border-radius:4px;padding:2px 8px;margin:0 6px 4px 0;">${esc(text)}</span>`;
+function pill(text, fg, bg) {
+  return `<span style="display:inline-block;font-size:11px;font-weight:700;color:${fg};background:${bg};border-radius:9px;padding:2px 8px;margin:0 5px 4px 0;">${esc(text)}</span>`;
 }
 
-function accentFor(level) {
-  const l = (level || "").toLowerCase();
-  if (l === "high" || l === "negative") return PALETTE.red;
-  if (l === "medium") return PALETTE.amber;
-  if (l === "positive") return PALETTE.green;
-  return PALETTE.accent;
+function statePill(state) {
+  const s = state || "Federal/National";
+  const isFederal = /federal|national/i.test(s);
+  return pill(s.toUpperCase(), isFederal ? PALETTE.purple : PALETTE.accent, isFederal ? PALETTE.purpleBg : PALETTE.pinkBg);
 }
 
-function card(item, opts) {
-  const left = accentFor(opts.level);
-  const metaBadges = (opts.badges || []).filter(b => b && b.text).map(b => badge(b.text, b.color)).join("");
+function sentimentPill(sentiment) {
+  const s = (sentiment || "neutral").toLowerCase();
+  if (s === "negative") return pill("NEGATIVE", "#ffffff", PALETTE.red);
+  if (s === "review") return pill("⚠ NEEDS REVIEW", PALETTE.amber, PALETTE.amberBg);
+  if (s === "positive") return pill("POSITIVE", PALETTE.green, PALETTE.greenBg);
+  if (s === "news") return pill("NEWS", PALETTE.blue, PALETTE.blueBg);
+  return pill("NEUTRAL", PALETTE.gray, PALETTE.grayBg);
+}
+
+function titleHtml(item) {
+  const t = esc(item.title);
+  if (item.url && String(item.url).indexOf("http") === 0) {
+    return `<a href="${esc(item.url)}" style="color:${PALETTE.text};text-decoration:none;">${t} <span style="color:${PALETTE.accent};">&rsaquo;</span></a>`;
+  }
+  return t;
+}
+
+function sourceHtml(item) {
   const src = [item.source, item.date].filter(Boolean).join(" · ");
-  const link = item.url && String(item.url).indexOf("http") === 0
-    ? `<a href="${esc(item.url)}" style="color:${PALETTE.accent};text-decoration:none;font-size:12px;">Read source &rsaquo;</a>`
-    : "";
-  return `
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px 0;">
-    <tr>
-      <td style="background:${PALETTE.surface};border:1px solid ${PALETTE.border};border-left:3px solid ${left};border-radius:10px;padding:14px 16px;">
-        <div style="margin-bottom:6px;">${metaBadges}${src ? `<span style="font-size:11px;color:${PALETTE.dim};font-family:monospace;">${esc(src)}</span>` : ""}</div>
-        <div style="font-size:15px;font-weight:600;color:${PALETTE.text};line-height:1.4;margin-bottom:5px;">${esc(item.title)}</div>
-        <div style="font-size:13px;color:${PALETTE.muted};line-height:1.6;margin-bottom:${link ? "8px" : "0"};">${esc(item.summary)}</div>
-        ${link}
-      </td>
-    </tr>
-  </table>`;
+  if (!src) return "";
+  const inner = esc(src);
+  const linked = item.url && String(item.url).indexOf("http") === 0
+    ? `<a href="${esc(item.url)}" style="color:${PALETTE.dim};text-decoration:underline;">${inner}</a>` : inner;
+  return `<div style="font-size:12px;color:${PALETTE.dim};margin-top:6px;">${linked}</div>`;
 }
 
-function sectionHeader(title) {
-  return `<tr><td style="padding:18px 0 10px 0;"><div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${PALETTE.accent};border-bottom:1px solid ${PALETTE.border};padding-bottom:6px;">${esc(title)}</div></td></tr>`;
+function row(pills, item, isLast) {
+  return `<tr><td style="padding:15px 20px;${isLast ? "" : `border-bottom:1px solid ${PALETTE.divider};`}">
+    <div style="margin-bottom:5px;">${pills}</div>
+    <div style="font-size:14px;font-weight:700;color:${PALETTE.text};line-height:1.4;">${titleHtml(item)}</div>
+    <div style="font-size:13px;color:${PALETTE.body};line-height:1.55;margin-top:3px;">${esc(item.summary)}</div>
+    ${sourceHtml(item)}
+  </td></tr>`;
+}
+
+function sectionCard(emoji, title, count, rowsHtml) {
+  return `
+  <div style="font-size:15px;font-weight:700;color:${PALETTE.text};margin:22px 0 8px 0;">${emoji} ${esc(title)} <span style="font-size:12px;font-weight:400;color:${PALETTE.dim};">· ${esc(count)}</span></div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PALETTE.bg};border:1px solid ${PALETTE.border};border-radius:14px;">
+    ${rowsHtml}
+  </table>`;
 }
 
 function policySection(items) {
   if (!items || !items.length) return "";
-  const cards = items.map(a => card(a, {
-    level: a.urgency,
-    badges: [{ text: a.state || "Federal/National", color: PALETTE.accent }, { text: a.topic || "Policy", color: PALETTE.muted }]
-  })).join("");
-  return sectionHeader("Policy Intelligence") + `<tr><td>${cards}</td></tr>`;
+  const rows = items.map((a, i) => row(
+    statePill(a.state) + ((a.urgency || "").toLowerCase() === "high" ? pill("High impact", "#d4537e", "#fdf0f4") : ""),
+    a, i === items.length - 1
+  )).join("");
+  return sectionCard("📜", "Policy intelligence", `${items.length} item${items.length === 1 ? "" : "s"}`, rows);
 }
 
 function fraudSection(items) {
   if (!items || !items.length) return "";
-  const cards = items.map(f => card(f, {
-    level: f.severity,
-    badges: [
-      { text: f.state || "Federal/National", color: PALETTE.accent },
-      { text: f.category || "Other", color: PALETTE.muted },
-      f.amount ? { text: f.amount, color: PALETTE.green } : null
-    ]
-  })).join("");
-  return sectionHeader("Medicaid Fraud") + `<tr><td>${cards}</td></tr>`;
+  const rows = items.map((f, i) => row(
+    statePill(f.state) + (f.amount ? pill(f.amount, "#ffffff", PALETTE.text) : ""),
+    f, i === items.length - 1
+  )).join("");
+  return sectionCard("🚨", "Medicaid fraud watch", `${items.length} case${items.length === 1 ? "" : "s"}`, rows);
 }
 
-function reputationSection(items) {
-  if (!items || !items.length) return "";
-  const cards = items.map(m => card(m, {
-    level: m.sentiment,
-    badges: [
-      { text: m.agency || "Honor Health Network", color: PALETTE.accent },
-      { text: (m.sentiment || "neutral").replace(/^./, c => c.toUpperCase()), color: accentFor(m.sentiment) },
-      { text: m.platform || "Web", color: PALETTE.muted }
-    ]
-  })).join("");
-  return sectionHeader("Reputation Watch") + `<tr><td>${cards}</td></tr>`;
+function reputationSection(items, quiet) {
+  let html = "";
+  if (items && items.length) {
+    const rows = items.map((m, i) => row(
+      sentimentPill(m.sentiment) + `<span style="font-size:12px;color:${PALETTE.muted};font-weight:600;">${esc(m.agency || "Honor Health Network")}${m.platform ? " · " + esc(m.platform) : ""}</span>`,
+      m, i === items.length - 1
+    )).join("");
+    html += sectionCard("👀", "Reputation watch", `${items.length} mention${items.length === 1 ? "" : "s"}`, rows);
+  }
+  if (quiet && quiet.length) {
+    html += `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+    <tr><td style="background:#faf3f6;border:1px dashed #e8c6d2;border-radius:14px;padding:13px 20px;">
+      <div style="font-size:12px;color:${PALETTE.muted};line-height:1.6;"><strong style="color:${PALETTE.body};">Quiet this week (${quiet.length} brand${quiet.length === 1 ? "" : "s"}):</strong> ${esc(quiet.join(", "))} — no third-party mentions found.</div>
+    </td></tr>
+  </table>`;
+  }
+  return html;
 }
 
-// subscriber: { email, areas:[], token }, digests: { policy, fraud, reputation }
+// Pick the single most important item across all sections for the top box.
+function pickTopStory(digests, areas) {
+  const has = a => areas.includes(a);
+  if (has("fraud")) {
+    const f = (digests.fraud || []).find(i => (i.severity || "").toLowerCase() === "high") || (digests.fraud || [])[0];
+    if (f) return { item: f, label: "fraud" };
+  }
+  if (has("policy")) {
+    const p = (digests.policy || []).find(i => (i.urgency || "").toLowerCase() === "high") || (digests.policy || [])[0];
+    if (p) return { item: p, label: "policy" };
+  }
+  if (has("reputation")) {
+    const r = (digests.reputation || []).find(i => ["negative", "review"].includes((i.sentiment || "").toLowerCase()));
+    if (r) return { item: r, label: "reputation" };
+  }
+  return null;
+}
+
+function topStoryBox(top) {
+  if (!top) return "";
+  const item = top.item;
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+    <tr><td style="background:${PALETTE.bg};border:1px solid ${PALETTE.border};border-left:4px solid ${PALETTE.accent};border-radius:14px;padding:17px 21px;">
+      <div style="font-size:11px;font-weight:700;color:${PALETTE.accent};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">⚡ The one thing to know this week</div>
+      <div style="font-size:17px;font-weight:700;color:${PALETTE.text};line-height:1.4;margin-bottom:6px;">${titleHtml(item)}</div>
+      <div style="font-size:14px;color:${PALETTE.body};line-height:1.6;">${esc(item.summary)}</div>
+      ${sourceHtml(item)}
+    </td></tr>
+  </table>`;
+}
+
+function statsStrip(digests, areas) {
+  const cells = [];
+  if (areas.includes("policy")) cells.push({ n: (digests.policy || []).length, label: "Policy items" });
+  if (areas.includes("fraud")) cells.push({ n: (digests.fraud || []).length, label: "Fraud cases" });
+  if (areas.includes("reputation")) cells.push({ n: (digests.reputation || []).length, label: "Brand mentions" });
+  if (!cells.length) return "";
+  const width = Math.floor(100 / cells.length);
+  const tds = cells.map((c, i) => `
+    <td width="${width}%" style="text-align:center;${i > 0 ? `border-left:1px solid ${PALETTE.border};` : ""}">
+      <div style="font-size:22px;font-weight:700;color:${PALETTE.text};">${c.n}</div>
+      <div style="font-size:11px;color:${PALETTE.muted};text-transform:uppercase;letter-spacing:0.5px;">${esc(c.label)}</div>
+    </td>`).join("");
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PALETTE.bg};border:1px solid ${PALETTE.border};border-radius:14px;">
+    <tr><td style="padding:15px 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${tds}</tr></table></td></tr>
+  </table>`;
+}
+
+// subscriber: { email, areas:[], token }
+// digests: { policy:[], fraud:[], reputation:[], reputationQuiet:[] }
 function renderEmail(subscriber, digests, opts = {}) {
   const appUrl = (opts.appUrl || "https://www.pieceofpi.app").replace(/\/$/, "");
   const areas = subscriber.areas || [];
   const dateStr = opts.dateStr || "";
 
   let sections = "";
-  if (areas.includes("policy"))     sections += policySection(digests.policy);
-  if (areas.includes("fraud"))      sections += fraudSection(digests.fraud);
-  if (areas.includes("reputation")) sections += reputationSection(digests.reputation);
+  if (areas.includes("policy")) sections += policySection(digests.policy);
+  if (areas.includes("fraud")) sections += fraudSection(digests.fraud);
+  if (areas.includes("reputation")) sections += reputationSection(digests.reputation, digests.reputationQuiet);
 
-  const hasContent = sections.length > 0;
+  const itemCount =
+    (areas.includes("policy") ? (digests.policy || []).length : 0) +
+    (areas.includes("fraud") ? (digests.fraud || []).length : 0) +
+    (areas.includes("reputation") ? (digests.reputation || []).length : 0);
+  const hasContent = itemCount > 0;
   if (!hasContent) {
-    sections = `<tr><td style="padding:24px 0;text-align:center;color:${PALETTE.muted};font-size:14px;">Nothing notable surfaced in your selected areas this edition. We'll keep watching.</td></tr>`;
+    sections = `<div style="padding:24px 0;text-align:center;color:${PALETTE.muted};font-size:14px;">Nothing notable surfaced in your selected areas this week. We'll keep watching.</div>`;
   }
 
+  const top = hasContent ? pickTopStory(digests, areas) : null;
   const unsubUrl = `${appUrl}/unsubscribe?token=${encodeURIComponent(subscriber.token)}`;
-  const subject = `Piece of Pi${dateStr ? " — " + dateStr : ""}: your policy briefing`;
+  const subjectTop = top && top.item && top.item.title ? String(top.item.title).slice(0, 70) : "your weekly snapshot";
+  const subject = `🥧 Piece of Pi weekly — ${subjectTop}`;
 
   const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4e9ed;font-family:'Helvetica Neue',Arial,sans-serif;color:${PALETTE.text};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4e9ed;padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:${PALETTE.bg};border-radius:14px;overflow:hidden;border:1px solid ${PALETTE.border};">
+<body style="margin:0;padding:0;background:${PALETTE.page};font-family:'Helvetica Neue',Arial,sans-serif;color:${PALETTE.text};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PALETTE.page};">
+    <tr><td align="center" style="padding:28px 12px;">
+      <table role="presentation" width="620" cellpadding="0" cellspacing="0" style="width:620px;max-width:620px;">
+
         <!-- Header -->
-        <tr><td style="padding:24px 28px 16px 28px;border-bottom:1px solid ${PALETTE.border};">
-          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
-            <td><img src="${appUrl}/logo.png" alt="Piece of Pi" height="44" style="height:44px;display:block;"></td>
-            <td align="right" style="font-size:11px;color:${PALETTE.dim};font-family:monospace;">${esc(dateStr)}</td>
-          </tr></table>
-          <div style="font-size:18px;font-weight:700;color:${PALETTE.text};margin-top:12px;">Your Policy Briefing</div>
-          <div style="font-size:12px;color:${PALETTE.dim};margin-top:2px;">Medicaid &middot; Home care &middot; Community-based services</div>
+        <tr><td align="center" style="padding-bottom:18px;">
+          <img src="${appUrl}/logo.png" alt="Piece of Pi" height="44" style="height:44px;display:block;margin:0 auto 8px auto;">
+          <div style="font-size:24px;font-weight:700;color:${PALETTE.accent};">Piece of Pi</div>
+          <div style="font-size:13px;color:${PALETTE.muted};margin-top:4px;">Weekly snapshot${dateStr ? " · " + esc(dateStr) : ""}</div>
         </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:8px 28px 24px 28px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${sections}</table>
+
+        <tr><td>
+          ${statsStrip(digests, areas)}
+          ${topStoryBox(top)}
+          ${sections}
         </td></tr>
+
         <!-- Footer -->
-        <tr><td style="padding:18px 28px 24px 28px;border-top:1px solid ${PALETTE.border};background:${PALETTE.surface};">
-          <div style="font-size:11px;color:${PALETTE.dim};line-height:1.6;">
-            You're receiving this because you signed up for the Piece of Pi briefing at Honor Health Network.<br>
-            <a href="${esc(appUrl)}/subscribe" style="color:${PALETTE.muted};">Update your preferences</a> &nbsp;&middot;&nbsp;
+        <tr><td align="center" style="padding:22px 20px 8px 20px;">
+          <div style="font-size:12px;color:${PALETTE.dim};line-height:1.7;">
+            You're subscribed to: ${esc(areas.map(a => ({ policy: "Policy Intelligence", fraud: "Medicaid Fraud", reputation: "Reputation Watch" }[a] || a)).join(", "))}<br>
+            <a href="${esc(appUrl)}/subscribe" style="color:${PALETTE.muted};">Manage preferences</a> &nbsp;&middot;&nbsp;
             <a href="${esc(unsubUrl)}" style="color:${PALETTE.muted};">Unsubscribe</a>
           </div>
+          <div style="font-size:11px;color:#d4a7b6;margin-top:10px;">Piece of Pi 🥧 &middot; pieceofpi.app</div>
         </td></tr>
+
       </table>
-      <div style="font-size:11px;color:#b89aa3;margin-top:14px;">Piece of Pi &middot; Policy &amp; Reputation Intelligence</div>
     </td></tr>
   </table>
 </body>

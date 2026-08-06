@@ -63,8 +63,23 @@ Each briefing run costs roughly $0.01–0.03 in Anthropic API usage depending on
 
 People sign up at **`/subscribe`** (a public page, no login) and pick which areas
 they want — Policy Intelligence, Reputation Watch, Medicaid Fraud. Every **Monday
-& Thursday** a job generates each chosen area's digest once and emails everyone a
-branded HTML briefing. Every email has a one-click unsubscribe link.
+morning** a job runs a real web scan of the last 7 days and emails everyone a
+branded "weekly snapshot" briefing. Every email has a one-click unsubscribe link.
+
+**How the scan works (v2 engine)**
+
+1. **Firecrawl search** (`FIRECRAWL_API_KEY`) runs ~35 real searches: one per
+   watchlist brand (see `lib/watchlist.js`) plus Reddit/review passes, and
+   state-scoped fraud + policy sweeps — all restricted to the past week.
+2. **Claude** (`ANTHROPIC_API_KEY`) then acts as an editor over ONLY those
+   results: dedupes, filters out the brands' own posts and similarly-named
+   companies, writes one-line summaries, and flags anything ambiguous as
+   "needs review". It cannot invent items — every digest item carries a URL
+   returned by a real search.
+3. The email leads with a "one thing to know this week" top story, then the
+   three sections, then a "quiet this week" line listing brands with no
+   mentions. Headlines link to sources. Table-based markup renders correctly
+   in classic Outlook.
 
 **Moving parts**
 
@@ -73,7 +88,7 @@ branded HTML briefing. Every email has a one-click unsubscribe link.
 - **Email** — Resend (`RESEND_API_KEY`, `FROM_EMAIL`). The sending domain must be
   verified in Resend (add the DKIM/SPF DNS records it gives you).
 - **Schedule** — a Railway cron service runs `node jobs/newsletter.js` on
-  `0 13 * * 1,4` (Mon & Thu, 13:00 UTC ≈ 9am ET).
+  `0 13 * * 1` (Mondays, 13:00 UTC ≈ 9am ET).
 
 ## Admin portal
 
