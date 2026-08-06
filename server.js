@@ -66,6 +66,25 @@ app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+// --- Key-protected manual newsletter trigger (open route, gated by RUN_KEY) ---
+// POST /api/newsletter/run-key with header X-Run-Key: $RUN_KEY. Lets automation
+// or an operator fire a send without a browser session or waiting for the cron.
+app.post("/api/newsletter/run-key", async (req, res) => {
+  const key = process.env.RUN_KEY || "";
+  if (!key || !safeEqual(req.get("x-run-key") || "", key)) {
+    return res.status(401).json({ error: "Bad or missing key." });
+  }
+  if (!DB_ENABLED) return res.status(503).json({ error: "Database not configured." });
+  try {
+    const { runNewsletter } = require("./jobs/newsletter");
+    const result = await runNewsletter({ trigger: "manual" });
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error("run-key newsletter run failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- Newsletter signup (open routes — no login required) ---
 const VALID_AREAS = ["policy", "reputation", "fraud"];
 
@@ -94,7 +113,7 @@ app.post("/api/subscribe", async (req, res) => {
         html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#2a0f18;">
           <img src="${appUrl}/logo.png" alt="Piece of Pi" height="44" style="height:44px;margin-bottom:12px;">
           <h2 style="color:#c03060;">You're subscribed 🥧</h2>
-          <p>You'll get your Piece of Pi briefing every <strong>Monday &amp; Thursday</strong>, covering: <strong>${areas.join(", ")}</strong>.</p>
+          <p>You'll get your Piece of Pi weekly snapshot every <strong>Monday morning</strong>, covering: <strong>${areas.join(", ")}</strong>.</p>
           <p style="font-size:12px;color:#b8788a;">Changed your mind? <a href="${unsubUrl}" style="color:#8a4055;">Unsubscribe anytime</a>.</p>
         </div>`
       }).catch(err => console.error("welcome email failed:", err.message));
@@ -288,7 +307,7 @@ app.post("/api/briefing", async (req, res) => {
 });
 
 // Manually trigger a newsletter send (logged-in admins only). Useful for testing
-// without waiting for the Monday/Thursday cron. Runs async; check logs for results.
+// without waiting for the Monday cron. Runs async; check logs for results.
 app.post("/api/newsletter/run", async (req, res) => {
   if (!DB_ENABLED) return res.status(503).json({ error: "Database not configured." });
   try {
