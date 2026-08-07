@@ -53,7 +53,7 @@
   <div class="card" id="card">
     <div class="brand"><img src="/logo.png" alt="Piece of Pi" /></div>
     <h1>Get the Piece of Pi briefing</h1>
-    <p class="sub">Medicaid, home care &amp; community-based services intelligence — delivered to your inbox every <strong>Monday &amp; Thursday</strong>. Choose what you want to follow.</p>
+    <p class="sub">Medicaid, home care &amp; community-based services intelligence — delivered to your inbox every <strong>Monday morning</strong>. Choose what you want to follow.</p>
 
     <form id="form">
       <label class="field" for="email">Your work email</label>
@@ -75,7 +75,7 @@
       </div>
 
       <button type="submit" id="submit">Subscribe</button>
-      <div class="cadence">Delivered Mondays &amp; Thursdays · unsubscribe anytime</div>
+      <div class="cadence">Delivered every Monday morning · unsubscribe anytime</div>
       <div class="msg" id="msg"></div>
     </form>
   </div>
@@ -114,7 +114,7 @@
         if (res.ok) {
           document.getElementById("card").innerHTML =
             '<div class="success"><div class="big">🥧</div><h2>You\'re in!</h2>' +
-            '<p>We\'ll send your first Piece of Pi briefing on the next Monday or Thursday. ' +
+            '<p>We\'ll send your first Piece of Pi briefing on Monday morning. ' +
             'Check your inbox — you can update or cancel anytime from any email.</p></div>';
           return;
         }
