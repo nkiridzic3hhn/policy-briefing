@@ -3,6 +3,54 @@
 // Outlook, which uses Word's engine — no flexbox, no CSS classes, borders on
 // all sides). Piece of Pi pink palette.
 
+const { WATCHLIST } = require("../lib/watchlist");
+
+const KNOWN_STATES = ["New York", "New Jersey", "Pennsylvania", "Massachusetts", "Connecticut",
+  "Georgia", "Michigan", "Indiana", "Colorado", "Maryland", "Washington DC"];
+
+// Map each watchlist brand to the state(s) named in its context. Brands with no
+// state (network-wide: Honor Health Network, CaringPays, the CEO) match everyone.
+const AGENCY_STATES = {};
+for (const w of WATCHLIST) {
+  const ctx = (w.context || "").toLowerCase();
+  for (const s of KNOWN_STATES) {
+    if (ctx.includes(s.toLowerCase())) {
+      (AGENCY_STATES[w.name] = AGENCY_STATES[w.name] || []).push(s);
+    }
+  }
+}
+
+function stateMatches(itemState, states) {
+  if (!states || !states.length) return true;
+  const s = String(itemState || "");
+  if (!s || /federal|national/i.test(s)) return true;
+  return states.some(st => s.toLowerCase().includes(st.toLowerCase()));
+}
+
+function reputationMatches(item, states) {
+  if (!states || !states.length) return true;
+  const agencies = String(item.agency || "").split("+").map(a => a.trim());
+  for (const a of agencies) {
+    const known = AGENCY_STATES[a];
+    if (!known || !known.length) return true; // network-wide brand — everyone sees it
+    if (known.some(st => states.includes(st))) return true;
+  }
+  return false;
+}
+
+// Reduce the shared digests to what this subscriber asked for.
+function filterForSubscriber(digests, prefs) {
+  const states = (prefs && Array.isArray(prefs.states)) ? prefs.states : [];
+  const topics = (prefs && Array.isArray(prefs.topics)) ? prefs.topics : [];
+  return {
+    policy: (digests.policy || []).filter(i =>
+      stateMatches(i.state, states) && (!topics.length || !i.topic || topics.includes(i.topic))),
+    fraud: (digests.fraud || []).filter(i => stateMatches(i.state, states)),
+    reputation: (digests.reputation || []).filter(i => reputationMatches(i, states)),
+    reputationQuiet: digests.reputationQuiet || []
+  };
+}
+
 const PALETTE = {
   page: "#f4e9ed",
   bg: "#ffffff",
@@ -175,12 +223,13 @@ function statsStrip(digests, areas) {
   </table>`;
 }
 
-// subscriber: { email, areas:[], token }
+// subscriber: { email, areas:[], token, prefs:{states,topics} }
 // digests: { policy:[], fraud:[], reputation:[], reputationQuiet:[] }
 function renderEmail(subscriber, digests, opts = {}) {
   const appUrl = (opts.appUrl || "https://www.pieceofpi.app").replace(/\/$/, "");
   const areas = subscriber.areas || [];
   const dateStr = opts.dateStr || "";
+  digests = filterForSubscriber(digests, subscriber.prefs);
 
   let sections = "";
   if (areas.includes("policy")) sections += policySection(digests.policy);
