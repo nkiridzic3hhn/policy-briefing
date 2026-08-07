@@ -211,8 +211,8 @@ function renderEmail(subscriber, digests, opts = {}) {
 
         <!-- Header -->
         <tr><td align="center" style="padding-bottom:18px;">
-          <div style="font-size:40px;line-height:1;">&#129367;</div>
-          <div style="font-size:24px;font-weight:700;color:${PALETTE.accent};margin-top:6px;">Piece of Pi</div>
+          <img src="cid:logo" alt="🥧 Piece of Pi" height="44" style="height:44px;display:block;margin:0 auto 8px auto;">
+          <div style="font-size:24px;font-weight:700;color:${PALETTE.accent};">Piece of Pi</div>
           <div style="font-size:13px;color:${PALETTE.muted};margin-top:4px;">Weekly snapshot${dateStr ? " · " + esc(dateStr) : ""}</div>
         </td></tr>
 
