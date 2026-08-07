@@ -27,9 +27,13 @@ function stateMatches(itemState, states) {
   return states.some(st => s.toLowerCase().includes(st.toLowerCase()));
 }
 
-function reputationMatches(item, states) {
-  if (!states || !states.length) return true;
+function reputationMatches(item, states, brands) {
   const agencies = String(item.agency || "").split("+").map(a => a.trim());
+  // An explicit brand pick is the most specific filter: use it alone.
+  if (brands && brands.length) {
+    return agencies.some(a => brands.includes(a));
+  }
+  if (!states || !states.length) return true;
   for (const a of agencies) {
     const known = AGENCY_STATES[a];
     if (!known || !known.length) return true; // network-wide brand — everyone sees it
@@ -42,11 +46,12 @@ function reputationMatches(item, states) {
 function filterForSubscriber(digests, prefs) {
   const states = (prefs && Array.isArray(prefs.states)) ? prefs.states : [];
   const topics = (prefs && Array.isArray(prefs.topics)) ? prefs.topics : [];
+  const brands = (prefs && Array.isArray(prefs.brands)) ? prefs.brands : [];
   return {
     policy: (digests.policy || []).filter(i =>
       stateMatches(i.state, states) && (!topics.length || !i.topic || topics.includes(i.topic))),
     fraud: (digests.fraud || []).filter(i => stateMatches(i.state, states)),
-    reputation: (digests.reputation || []).filter(i => reputationMatches(i, states)),
+    reputation: (digests.reputation || []).filter(i => reputationMatches(i, states, brands)),
     reputationQuiet: digests.reputationQuiet || []
   };
 }
@@ -223,7 +228,7 @@ function statsStrip(digests, areas) {
   </table>`;
 }
 
-// subscriber: { email, areas:[], token, prefs:{states,topics} }
+// subscriber: { email, areas:[], token, prefs:{states,topics,brands} }
 // digests: { policy:[], fraud:[], reputation:[], reputationQuiet:[] }
 function renderEmail(subscriber, digests, opts = {}) {
   const appUrl = (opts.appUrl || "https://www.pieceofpi.app").replace(/\/$/, "");
