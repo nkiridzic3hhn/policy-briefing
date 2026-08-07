@@ -110,10 +110,12 @@ app.post("/api/subscribe", async (req, res) => {
   const states = Array.isArray(body.states) ? body.states.filter(s => VALID_STATES.includes(s)) : [];
   const topics = Array.isArray(body.topics) ? body.topics.filter(t => VALID_TOPICS.includes(t)) : [];
   const brands = Array.isArray(body.brands) ? body.brands.filter(b => VALID_BRANDS.includes(b)) : [];
+  const frequency = ["daily", "weekly", "monthly"].includes(body.frequency) ? body.frequency : "weekly";
   const prefs = {};
   if (states.length && states.length < VALID_STATES.length) prefs.states = states;
   if (topics.length && topics.length < VALID_TOPICS.length) prefs.topics = topics;
   if (brands.length && brands.length < VALID_BRANDS.length) prefs.brands = brands;
+  if (frequency !== "weekly") prefs.frequency = frequency;
 
   try {
     const token = crypto.randomBytes(24).toString("hex");
@@ -122,13 +124,15 @@ app.post("/api/subscribe", async (req, res) => {
     if (process.env.RESEND_API_KEY) {
       const appUrl = process.env.APP_URL || "https://www.pieceofpi.app";
       const unsubUrl = `${appUrl.replace(/\/$/, "")}/unsubscribe?token=${encodeURIComponent(sub.token)}`;
+      const cadence = frequency === "daily" ? "every weekday morning"
+        : frequency === "monthly" ? "on the first Monday of each month" : "every Monday morning";
       sendEmail({
         to: email,
         subject: "You're subscribed to Piece of Pi",
         html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#2a0f18;">
           <img src="${appUrl}/logo.png" alt="Piece of Pi" height="44" style="height:44px;margin-bottom:12px;">
           <h2 style="color:#c03060;">You're subscribed 🥧</h2>
-          <p>You'll get your Piece of Pi weekly snapshot every <strong>Monday morning</strong>, covering: <strong>${areas.join(", ")}</strong>.</p>
+          <p>You'll get your Piece of Pi snapshot <strong>${cadence}</strong>, covering: <strong>${areas.join(", ")}</strong>.</p>
           <p style="font-size:12px;color:#b8788a;">Changed your mind? <a href="${unsubUrl}" style="color:#8a4055;">Unsubscribe anytime</a>.</p>
         </div>`
       }).catch(err => console.error("welcome email failed:", err.message));
@@ -235,6 +239,7 @@ app.patch("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
     if (Array.isArray(body.prefs.states)) p.states = body.prefs.states.filter(s => VALID_STATES.includes(s));
     if (Array.isArray(body.prefs.topics)) p.topics = body.prefs.topics.filter(t => VALID_TOPICS.includes(t));
     if (Array.isArray(body.prefs.brands)) p.brands = body.prefs.brands.filter(b => VALID_BRANDS.includes(b));
+    if (["daily", "weekly", "monthly"].includes(body.prefs.frequency)) p.frequency = body.prefs.frequency;
     patch.prefs = p;
   }
   const row = await db.updateSubscriber(id, patch);
@@ -251,10 +256,11 @@ app.delete("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
 app.get("/api/admin/subscribers.csv", ...adminApi(async (req, res) => {
   const rows = await db.listSubscribers({});
   const esc = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const lines = ["email,areas,states,topics,brands,status,joined"];
+  const lines = ["email,areas,frequency,states,topics,brands,status,joined"];
   rows.forEach(r => {
     const prefs = r.prefs || {};
     lines.push([esc(r.email), esc((r.areas || []).join("|")),
+      esc(prefs.frequency || "weekly"),
       esc((prefs.states || []).join("|") || "all"), esc((prefs.topics || []).join("|") || "all"),
       esc((prefs.brands || []).join("|") || "all"),
       esc(r.status), esc(new Date(r.created_at).toISOString())].join(","));
@@ -335,7 +341,7 @@ app.post("/api/briefing", async (req, res) => {
 });
 
 // Manually trigger a newsletter send (logged-in admins only). Useful for testing
-// without waiting for the Monday cron. Runs async; check logs for results.
+// without waiting for the cron. Runs async; check logs for results.
 app.post("/api/newsletter/run", async (req, res) => {
   if (!DB_ENABLED) return res.status(503).json({ error: "Database not configured." });
   try {
