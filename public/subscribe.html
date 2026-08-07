@@ -116,6 +116,38 @@
         </div>
       </div>
 
+      <div class="group">
+        <div class="g-title">Agencies &amp; brands (Reputation Watch)</div>
+        <div class="g-hint">Which brands' mentions you want to see. All selected by default.</div>
+        <div class="chips" id="brands">
+          <label class="chip on"><input type="checkbox" value="Honor Health Network" checked />Honor Health Network</label>
+          <label class="chip on"><input type="checkbox" value="CaringPays" checked />CaringPays</label>
+          <label class="chip on"><input type="checkbox" value="Simon Shemia" checked />Simon Shemia (CEO)</label>
+          <label class="chip on"><input type="checkbox" value="Agility Home Care" checked />Agility Home Care</label>
+          <label class="chip on"><input type="checkbox" value="All Health Home Care" checked />All Health Home Care</label>
+          <label class="chip on"><input type="checkbox" value="All at Home" checked />All at Home</label>
+          <label class="chip on"><input type="checkbox" value="Always Home Services" checked />Always Home Services</label>
+          <label class="chip on"><input type="checkbox" value="Angels On Call" checked />Angels On Call</label>
+          <label class="chip on"><input type="checkbox" value="Broadway Medical Adult Day Care" checked />Broadway Medical ADC</label>
+          <label class="chip on"><input type="checkbox" value="Broadway Respite and Home Care" checked />Broadway Respite</label>
+          <label class="chip on"><input type="checkbox" value="Caring Home Care" checked />Caring Home Care</label>
+          <label class="chip on"><input type="checkbox" value="Central Penn Nursing Care" checked />Central Penn Nursing</label>
+          <label class="chip on"><input type="checkbox" value="FamilyCares" checked />FamilyCares</label>
+          <label class="chip on"><input type="checkbox" value="First Horizon" checked />First Horizon</label>
+          <label class="chip on"><input type="checkbox" value="Golden Years Homecare Services" checked />Golden Years Homecare</label>
+          <label class="chip on"><input type="checkbox" value="Hand In Hand" checked />Hand In Hand</label>
+          <label class="chip on"><input type="checkbox" value="Home Care Visiting Nurse" checked />Home Care Visiting Nurse</label>
+          <label class="chip on"><input type="checkbox" value="IRN Home Care" checked />IRN Home Care</label>
+          <label class="chip on"><input type="checkbox" value="Juniper Home Care Services" checked />Juniper Home Care</label>
+          <label class="chip on"><input type="checkbox" value="Juniper Adult Day Care" checked />Juniper Adult Day Care</label>
+          <label class="chip on"><input type="checkbox" value="Juniper Meals on Wheels" checked />Juniper Meals on Wheels</label>
+          <label class="chip on"><input type="checkbox" value="Just Home Medical Adult Day Care" checked />Just Home Medical ADC</label>
+          <label class="chip on"><input type="checkbox" value="Nightingale Services" checked />Nightingale Services</label>
+          <label class="chip on"><input type="checkbox" value="Quality Healthcare" checked />Quality Healthcare</label>
+          <label class="chip on"><input type="checkbox" value="VMT Home Health" checked />VMT Home Health</label>
+        </div>
+      </div>
+
       <button type="submit" id="submit">Subscribe</button>
       <div class="cadence">Delivered every Monday morning · unsubscribe anytime</div>
       <div class="msg" id="msg"></div>
@@ -154,13 +186,14 @@
       if (!areas.length) { msg.className = "msg err"; msg.textContent = "Pick at least one area to follow."; return; }
       var states = chipValues("states");
       var topics = chipValues("topics");
+      var brands = chipValues("brands");
 
       btn.disabled = true; btn.textContent = "Subscribing…";
       try {
         var res = await fetch("/api/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email, areas: areas, states: states, topics: topics })
+          body: JSON.stringify({ email: email, areas: areas, states: states, topics: topics, brands: brands })
         });
         var data = await res.json().catch(function () { return {}; });
         if (res.ok) {
