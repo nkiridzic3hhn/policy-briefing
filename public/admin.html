@@ -149,6 +149,7 @@
 
     function prefChips(prefs) {
       prefs = prefs || {};
+      const fq = `<span class="chip">${esc((prefs.frequency || "weekly").replace(/^./, c => c.toUpperCase()))}</span>`;
       const st = (prefs.states && prefs.states.length)
         ? prefs.states.map(s => `<span class="chip">${esc(s)}</span>`).join("")
         : '<span class="muted">All states</span>';
@@ -158,7 +159,7 @@
       const br = (prefs.brands && prefs.brands.length)
         ? prefs.brands.map(b => `<span class="chip">${esc(b)}</span>`).join("")
         : '<span class="muted">All brands</span>';
-      return `<div style="margin-bottom:3px">${st}</div><div style="margin-bottom:3px">${tp}</div><div>${br}</div>`;
+      return `<div style="margin-bottom:3px">${fq}${st}</div><div style="margin-bottom:3px">${tp}</div><div>${br}</div>`;
     }
 
     async function loadSubs() {
