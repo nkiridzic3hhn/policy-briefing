@@ -147,17 +147,29 @@
 
     function areaChips(areas) { return (areas || []).map(a => `<span class="chip">${AREA_LABELS[a] || a}</span>`).join(""); }
 
+    function prefChips(prefs) {
+      prefs = prefs || {};
+      const st = (prefs.states && prefs.states.length)
+        ? prefs.states.map(s => `<span class="chip">${esc(s)}</span>`).join("")
+        : '<span class="muted">All states</span>';
+      const tp = (prefs.topics && prefs.topics.length)
+        ? prefs.topics.map(t => `<span class="chip">${esc(t)}</span>`).join("")
+        : '<span class="muted">All topics</span>';
+      return `<div style="margin-bottom:3px">${st}</div><div>${tp}</div>`;
+    }
+
     async function loadSubs() {
       const q = encodeURIComponent(document.getElementById("search").value || "");
       const st = document.getElementById("statusFilter").value;
       const data = await api(`/api/admin/subscribers?search=${q}&status=${st}`);
       const rows = data.subscribers;
       if (!rows.length) { document.getElementById("subsTable").innerHTML = '<div class="empty">No subscribers match.</div>'; return; }
-      let html = '<table><thead><tr><th>Email</th><th>Areas</th><th>Status</th><th>Joined</th><th></th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>Email</th><th>Areas</th><th>States &amp; topics</th><th>Status</th><th>Joined</th><th></th></tr></thead><tbody>';
       rows.forEach(r => {
         html += `<tr data-id="${r.id}">
           <td>${esc(r.email)}</td>
           <td class="areas-cell">${areaChips(r.areas)}</td>
+          <td>${prefChips(r.prefs)}</td>
           <td><span class="badge ${r.status}">${r.status}</span></td>
           <td class="mono">${fmtDate(r.created_at)}</td>
           <td><div class="row-actions">
