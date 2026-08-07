@@ -155,7 +155,10 @@
       const tp = (prefs.topics && prefs.topics.length)
         ? prefs.topics.map(t => `<span class="chip">${esc(t)}</span>`).join("")
         : '<span class="muted">All topics</span>';
-      return `<div style="margin-bottom:3px">${st}</div><div>${tp}</div>`;
+      const br = (prefs.brands && prefs.brands.length)
+        ? prefs.brands.map(b => `<span class="chip">${esc(b)}</span>`).join("")
+        : '<span class="muted">All brands</span>';
+      return `<div style="margin-bottom:3px">${st}</div><div style="margin-bottom:3px">${tp}</div><div>${br}</div>`;
     }
 
     async function loadSubs() {
