@@ -87,6 +87,10 @@ app.post("/api/newsletter/run-key", async (req, res) => {
 
 // --- Newsletter signup (open routes — no login required) ---
 const VALID_AREAS = ["policy", "reputation", "fraud"];
+const VALID_STATES = ["New York", "New Jersey", "Pennsylvania", "Massachusetts", "Connecticut",
+  "Georgia", "Michigan", "Indiana", "Colorado", "Maryland", "Washington DC"];
+const VALID_TOPICS = ["Medicaid Policy", "Home Care", "HCBS/Waivers", "EVV/Compliance",
+  "Workforce", "Budget/Funding", "Legislation"];
 
 app.get("/subscribe", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "subscribe.html"));
@@ -100,9 +104,16 @@ app.post("/api/subscribe", async (req, res) => {
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Please enter a valid email address." });
   if (!areas.length) return res.status(400).json({ error: "Pick at least one area to follow." });
 
+  // Optional personalization; empty arrays mean "everything".
+  const states = Array.isArray(body.states) ? body.states.filter(s => VALID_STATES.includes(s)) : [];
+  const topics = Array.isArray(body.topics) ? body.topics.filter(t => VALID_TOPICS.includes(t)) : [];
+  const prefs = {};
+  if (states.length && states.length < VALID_STATES.length) prefs.states = states;
+  if (topics.length && topics.length < VALID_TOPICS.length) prefs.topics = topics;
+
   try {
     const token = crypto.randomBytes(24).toString("hex");
-    const sub = await db.upsertSubscriber(email, areas, token);
+    const sub = await db.upsertSubscriber(email, areas, token, prefs);
     // Best-effort welcome email; never block signup on it.
     if (process.env.RESEND_API_KEY) {
       const appUrl = process.env.APP_URL || "https://www.pieceofpi.app";
@@ -215,6 +226,12 @@ app.patch("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
   const patch = {};
   if (Array.isArray(body.areas)) patch.areas = body.areas.filter(a => ["policy", "reputation", "fraud"].includes(a));
   if (body.status === "active" || body.status === "unsubscribed") patch.status = body.status;
+  if (body.prefs && typeof body.prefs === "object") {
+    const p = {};
+    if (Array.isArray(body.prefs.states)) p.states = body.prefs.states.filter(s => VALID_STATES.includes(s));
+    if (Array.isArray(body.prefs.topics)) p.topics = body.prefs.topics.filter(t => VALID_TOPICS.includes(t));
+    patch.prefs = p;
+  }
   const row = await db.updateSubscriber(id, patch);
   if (!row) return res.status(404).json({ error: "Not found or nothing to update." });
   res.json({ subscriber: row });
@@ -229,8 +246,13 @@ app.delete("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
 app.get("/api/admin/subscribers.csv", ...adminApi(async (req, res) => {
   const rows = await db.listSubscribers({});
   const esc = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const lines = ["email,areas,status,joined"];
-  rows.forEach(r => lines.push([esc(r.email), esc((r.areas || []).join("|")), esc(r.status), esc(new Date(r.created_at).toISOString())].join(",")));
+  const lines = ["email,areas,states,topics,status,joined"];
+  rows.forEach(r => {
+    const prefs = r.prefs || {};
+    lines.push([esc(r.email), esc((r.areas || []).join("|")),
+      esc((prefs.states || []).join("|") || "all"), esc((prefs.topics || []).join("|") || "all"),
+      esc(r.status), esc(new Date(r.created_at).toISOString())].join(","));
+  });
   res.set("Content-Type", "text/csv");
   res.set("Content-Disposition", 'attachment; filename="piece-of-pi-subscribers.csv"');
   res.send(lines.join("\n"));
