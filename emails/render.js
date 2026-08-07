@@ -202,7 +202,7 @@ function topStoryBox(top) {
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
     <tr><td style="background:${PALETTE.bg};border:1px solid ${PALETTE.border};border-left:4px solid ${PALETTE.accent};border-radius:14px;padding:17px 21px;">
-      <div style="font-size:11px;font-weight:700;color:${PALETTE.accent};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">⚡ The one thing to know this week</div>
+      <div style="font-size:11px;font-weight:700;color:${PALETTE.accent};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">⚡ The one thing to know</div>
       <div style="font-size:17px;font-weight:700;color:${PALETTE.text};line-height:1.4;margin-bottom:6px;">${titleHtml(item)}</div>
       <div style="font-size:14px;color:${PALETTE.body};line-height:1.6;">${esc(item.summary)}</div>
       ${sourceHtml(item)}
@@ -228,12 +228,14 @@ function statsStrip(digests, areas) {
   </table>`;
 }
 
-// subscriber: { email, areas:[], token, prefs:{states,topics,brands} }
+// subscriber: { email, areas:[], token, prefs:{states,topics,brands,frequency} }
 // digests: { policy:[], fraud:[], reputation:[], reputationQuiet:[] }
+// opts.edition: "Daily" | "Weekly" | "Monthly" (display label; default Weekly)
 function renderEmail(subscriber, digests, opts = {}) {
   const appUrl = (opts.appUrl || "https://www.pieceofpi.app").replace(/\/$/, "");
   const areas = subscriber.areas || [];
   const dateStr = opts.dateStr || "";
+  const edition = opts.edition || "Weekly";
   digests = filterForSubscriber(digests, subscriber.prefs);
 
   let sections = "";
@@ -247,13 +249,13 @@ function renderEmail(subscriber, digests, opts = {}) {
     (areas.includes("reputation") ? (digests.reputation || []).length : 0);
   const hasContent = itemCount > 0;
   if (!hasContent) {
-    sections = `<div style="padding:24px 0;text-align:center;color:${PALETTE.muted};font-size:14px;">Nothing notable surfaced in your selected areas this week. We'll keep watching.</div>`;
+    sections = `<div style="padding:24px 0;text-align:center;color:${PALETTE.muted};font-size:14px;">Nothing notable surfaced in your selected areas this edition. We'll keep watching.</div>`;
   }
 
   const top = hasContent ? pickTopStory(digests, areas) : null;
   const unsubUrl = `${appUrl}/unsubscribe?token=${encodeURIComponent(subscriber.token)}`;
-  const subjectTop = top && top.item && top.item.title ? String(top.item.title).slice(0, 70) : "your weekly snapshot";
-  const subject = `🥧 Piece of Pi weekly — ${subjectTop}`;
+  const subjectTop = top && top.item && top.item.title ? String(top.item.title).slice(0, 70) : "your snapshot";
+  const subject = `🥧 Piece of Pi ${edition.toLowerCase()} — ${subjectTop}`;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -267,7 +269,7 @@ function renderEmail(subscriber, digests, opts = {}) {
         <tr><td align="center" style="padding-bottom:18px;">
           <img src="cid:logo" alt="🥧 Piece of Pi" height="176" style="height:176px;display:block;margin:0 auto 8px auto;">
           <div style="font-size:24px;font-weight:700;color:${PALETTE.accent};">Piece of Pi</div>
-          <div style="font-size:13px;color:${PALETTE.muted};margin-top:4px;">Weekly snapshot${dateStr ? " · " + esc(dateStr) : ""}</div>
+          <div style="font-size:13px;color:${PALETTE.muted};margin-top:4px;">${edition} snapshot${dateStr ? " · " + esc(dateStr) : ""}</div>
         </td></tr>
 
         <tr><td>
