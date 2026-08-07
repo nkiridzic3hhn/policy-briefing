@@ -91,6 +91,8 @@ const VALID_STATES = ["New York", "New Jersey", "Pennsylvania", "Massachusetts",
   "Georgia", "Michigan", "Indiana", "Colorado", "Maryland", "Washington DC"];
 const VALID_TOPICS = ["Medicaid Policy", "Home Care", "HCBS/Waivers", "EVV/Compliance",
   "Workforce", "Budget/Funding", "Legislation"];
+const { WATCHLIST } = require("./lib/watchlist");
+const VALID_BRANDS = [...new Set(WATCHLIST.map(w => w.name))];
 
 app.get("/subscribe", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "subscribe.html"));
@@ -107,9 +109,11 @@ app.post("/api/subscribe", async (req, res) => {
   // Optional personalization; empty arrays mean "everything".
   const states = Array.isArray(body.states) ? body.states.filter(s => VALID_STATES.includes(s)) : [];
   const topics = Array.isArray(body.topics) ? body.topics.filter(t => VALID_TOPICS.includes(t)) : [];
+  const brands = Array.isArray(body.brands) ? body.brands.filter(b => VALID_BRANDS.includes(b)) : [];
   const prefs = {};
   if (states.length && states.length < VALID_STATES.length) prefs.states = states;
   if (topics.length && topics.length < VALID_TOPICS.length) prefs.topics = topics;
+  if (brands.length && brands.length < VALID_BRANDS.length) prefs.brands = brands;
 
   try {
     const token = crypto.randomBytes(24).toString("hex");
@@ -230,6 +234,7 @@ app.patch("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
     const p = {};
     if (Array.isArray(body.prefs.states)) p.states = body.prefs.states.filter(s => VALID_STATES.includes(s));
     if (Array.isArray(body.prefs.topics)) p.topics = body.prefs.topics.filter(t => VALID_TOPICS.includes(t));
+    if (Array.isArray(body.prefs.brands)) p.brands = body.prefs.brands.filter(b => VALID_BRANDS.includes(b));
     patch.prefs = p;
   }
   const row = await db.updateSubscriber(id, patch);
@@ -246,11 +251,12 @@ app.delete("/api/admin/subscribers/:id", ...adminApi(async (req, res) => {
 app.get("/api/admin/subscribers.csv", ...adminApi(async (req, res) => {
   const rows = await db.listSubscribers({});
   const esc = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const lines = ["email,areas,states,topics,status,joined"];
+  const lines = ["email,areas,states,topics,brands,status,joined"];
   rows.forEach(r => {
     const prefs = r.prefs || {};
     lines.push([esc(r.email), esc((r.areas || []).join("|")),
       esc((prefs.states || []).join("|") || "all"), esc((prefs.topics || []).join("|") || "all"),
+      esc((prefs.brands || []).join("|") || "all"),
       esc(r.status), esc(new Date(r.created_at).toISOString())].join(","));
   });
   res.set("Content-Type", "text/csv");
