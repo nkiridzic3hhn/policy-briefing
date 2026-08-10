@@ -52,6 +52,9 @@ function dueFrequencies(now = new Date()) {
 
 async function runNewsletter(opts = {}) {
   const trigger = opts.trigger === "cron" ? "cron" : "manual";
+  // Dedupe (never repeat a story) always applies to cron; manual runs can opt
+  // in with opts.dedupe to behave exactly like a scheduled send.
+  const dedupe = trigger === "cron" || opts.dedupe === true;
   await db.init();
   const sendId = await db.createSend(trigger);
 
@@ -60,7 +63,12 @@ async function runNewsletter(opts = {}) {
     // Cron respects each subscriber's cadence; manual runs send everyone their
     // own edition regardless of day (useful for testing and ad-hoc sends).
     const due = trigger === "cron" ? dueFrequencies() : ["daily", "weekly", "monthly"];
-    const subscribers = all.filter(s => due.includes(subscriberFrequency(s)));
+    let subscribers = all.filter(s => due.includes(subscriberFrequency(s)));
+    // opts.only: restrict a run to a single subscriber (targeted test sends).
+    if (opts.only) {
+      const target = String(opts.only).toLowerCase().trim();
+      subscribers = subscribers.filter(s => s.email === target);
+    }
 
     if (!subscribers.length) {
       console.log(`[newsletter] No subscribers due today (due cadences: ${due.join(", ") || "none"}).`);
@@ -99,10 +107,10 @@ async function runNewsletter(opts = {}) {
       const freq = subscriberFrequency(sub);
       let digests = digestsByDays[FREQ_DAYS[freq]];
 
-      // Scheduled sends never repeat a story someone already got: drop anything
-      // sent to this subscriber in the last 30 days. Manual runs skip the
-      // filter so test sends always show full content.
-      if (trigger === "cron") {
+      // Dedupe runs never repeat a story someone already got: drop anything
+      // sent to this subscriber in the last 30 days. Plain manual runs skip
+      // the filter so test sends always show full content.
+      if (dedupe) {
         try {
           const seen = new Set((await db.getSentUrls(sub.email, 30)).map(normUrl));
           digests = dropSeen(digests, seen);
@@ -122,7 +130,7 @@ async function runNewsletter(opts = {}) {
         await sendEmail({ to: sub.email, subject, html });
         sent++;
         await db.logRecipient(sendId, sub.email, "sent", null);
-        if (trigger === "cron" && urls && urls.length) {
+        if (dedupe && urls && urls.length) {
           try { await db.logSentItems(sub.email, urls.map(normUrl)); }
           catch (err) { console.error(`[newsletter] logSentItems failed: ${err.message}`); }
         }
