@@ -94,7 +94,7 @@ const VALID_AREAS = ["policy", "reputation", "fraud"];
 const VALID_STATES = ["New York", "New Jersey", "Pennsylvania", "Massachusetts", "Connecticut",
   "Georgia", "Michigan", "Indiana", "Colorado", "Maryland", "Washington DC"];
 const VALID_TOPICS = ["Medicaid Policy", "Home Care", "HCBS/Waivers", "EVV/Compliance",
-  "Workforce", "Budget/Funding", "Legislation"];
+  "Workforce", "Budget/Funding", "Legislation", "Wage & Hour"];
 const { WATCHLIST } = require("./lib/watchlist");
 const VALID_BRANDS = [...new Set(WATCHLIST.map(w => w.name))];
 
@@ -117,7 +117,9 @@ app.post("/api/subscribe", async (req, res) => {
   const frequency = ["daily", "weekly", "monthly"].includes(body.frequency) ? body.frequency : "weekly";
   const prefs = {};
   if (states.length && states.length < VALID_STATES.length) prefs.states = states;
-  if (topics.length && topics.length < VALID_TOPICS.length) prefs.topics = topics;
+  // "Wage & Hour" is opt-in, so any selection that includes it must be stored
+  // explicitly (never collapsed into the "everything" default).
+  if (topics.length && (topics.length < VALID_TOPICS.length || topics.includes("Wage & Hour"))) prefs.topics = topics;
   if (brands.length && brands.length < VALID_BRANDS.length) prefs.brands = brands;
   if (frequency !== "weekly") prefs.frequency = frequency;
 
