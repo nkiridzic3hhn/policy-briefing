@@ -132,13 +132,17 @@ app.post("/api/subscribe", async (req, res) => {
       const unsubUrl = `${appUrl.replace(/\/$/, "")}/unsubscribe?token=${encodeURIComponent(sub.token)}`;
       const cadence = frequency === "daily" ? "every weekday morning"
         : frequency === "monthly" ? "on the first Monday of each month" : "every Monday morning";
+      const AREA_LABELS = { policy: "Policy Intelligence", fraud: "Medicaid Fraud", reputation: "Reputation Watch" };
+      const areaNames = areas.map(a => AREA_LABELS[a] || a).join(", ");
       sendEmail({
         to: email,
         subject: "You're subscribed to Piece of Pi",
-        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#2a0f18;">
-          <img src="${appUrl}/logo.png" alt="Piece of Pi" height="44" style="height:44px;margin-bottom:12px;">
+        // cid:logo makes sendEmail attach the embedded logo, so it renders even
+        // in corporate Outlook (which blocks remote images).
+        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#2a0f18;text-align:center;padding:24px 0;">
+          <img src="cid:logo" alt="Piece of Pi" height="88" style="height:88px;margin-bottom:12px;">
           <h2 style="color:#c03060;">You're subscribed 🥧</h2>
-          <p>You'll get your Piece of Pi snapshot <strong>${cadence}</strong>, covering: <strong>${areas.join(", ")}</strong>.</p>
+          <p>You'll get your Piece of Pi snapshot <strong>${cadence}</strong>, covering: <strong>${areaNames}</strong>.</p>
           <p style="font-size:12px;color:#b8788a;">Changed your mind? <a href="${unsubUrl}" style="color:#8a4055;">Unsubscribe anytime</a>.</p>
         </div>`
       }).catch(err => console.error("welcome email failed:", err.message));
