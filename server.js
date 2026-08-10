@@ -77,7 +77,11 @@ app.post("/api/newsletter/run-key", async (req, res) => {
   if (!DB_ENABLED) return res.status(503).json({ error: "Database not configured." });
   try {
     const { runNewsletter } = require("./jobs/newsletter");
-    const result = await runNewsletter({ trigger: "manual" });
+    // Optional body: { only: "someone@x.com" } targets one subscriber;
+    // { dedupe: true } makes the run behave exactly like a scheduled send
+    // (drops already-sent stories and remembers the new ones).
+    const body = req.body || {};
+    const result = await runNewsletter({ trigger: "manual", only: body.only, dedupe: body.dedupe === true });
     res.json({ ok: true, result });
   } catch (err) {
     console.error("run-key newsletter run failed:", err);
