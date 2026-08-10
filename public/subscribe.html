@@ -114,7 +114,7 @@
 
       <div class="group">
         <div class="g-title">Policy topics</div>
-        <div class="g-hint">Applies to the Policy Intelligence section. All selected by default.</div>
+        <div class="g-hint">Applies to the Policy Intelligence section. All selected by default; wage &amp; hour is opt-in.</div>
         <div class="chips" id="topics">
           <label class="chip on"><input type="checkbox" value="Medicaid Policy" checked />Medicaid policy</label>
           <label class="chip on"><input type="checkbox" value="Home Care" checked />Home care</label>
@@ -123,6 +123,7 @@
           <label class="chip on"><input type="checkbox" value="Workforce" checked />Workforce</label>
           <label class="chip on"><input type="checkbox" value="Budget/Funding" checked />Budget &amp; funding</label>
           <label class="chip on"><input type="checkbox" value="Legislation" checked />Legislation</label>
+          <label class="chip"><input type="checkbox" value="Wage & Hour" />Wage &amp; hour (opt-in)</label>
         </div>
       </div>
 
@@ -194,7 +195,10 @@
       if (!email) { msg.className = "msg err"; msg.textContent = "Enter your email."; return; }
       if (!areas.length) { msg.className = "msg err"; msg.textContent = "Pick at least one area to follow."; return; }
       var states = chipValues("states");
-      var topics = chipValues("topics");
+      // Topics are always sent explicitly (never collapsed to "everything")
+      // because "Wage & Hour" is opt-in and must survive a full selection.
+      var topics = Array.prototype.slice.call(document.querySelectorAll("#topics input"))
+        .filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
       var brands = chipValues("brands");
       var freqEl = document.querySelector('#frequency input:checked');
       var frequency = freqEl ? freqEl.value : "weekly";
