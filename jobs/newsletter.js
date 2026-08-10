@@ -24,6 +24,20 @@ function subscriberFrequency(sub) {
   return FREQ_DAYS[f] ? f : "weekly";
 }
 
+// Drop items a subscriber has already been sent in a prior edition. Matching
+// is by normalized URL — the same story from the same source never repeats.
+function normUrl(u) { return String(u || "").trim().replace(/\/$/, "").toLowerCase(); }
+function dropSeen(digests, seenSet) {
+  if (!seenSet || !seenSet.size) return digests;
+  const filter = list => (list || []).filter(i => !i.url || !seenSet.has(normUrl(i.url)));
+  return {
+    ...digests,
+    policy: filter(digests.policy),
+    fraud: filter(digests.fraud),
+    reputation: filter(digests.reputation)
+  };
+}
+
 // Which frequencies get an edition today (based on UTC date, cron runs 13:00 UTC).
 function dueFrequencies(now = new Date()) {
   const dow = now.getUTCDay(); // 0=Sun ... 6=Sat
@@ -83,19 +97,36 @@ async function runNewsletter(opts = {}) {
     let sent = 0, skipped = 0, failed = 0;
     for (const sub of subscribers) {
       const freq = subscriberFrequency(sub);
-      const digests = digestsByDays[FREQ_DAYS[freq]];
-      const { subject, html, hasContent } = renderEmail(sub, digests, { appUrl, dateStr, edition: FREQ_LABEL[freq] });
+      let digests = digestsByDays[FREQ_DAYS[freq]];
+
+      // Scheduled sends never repeat a story someone already got: drop anything
+      // sent to this subscriber in the last 30 days. Manual runs skip the
+      // filter so test sends always show full content.
+      if (trigger === "cron") {
+        try {
+          const seen = new Set((await db.getSentUrls(sub.email, 30)).map(normUrl));
+          digests = dropSeen(digests, seen);
+        } catch (err) {
+          console.error(`[newsletter] dedupe lookup failed for ${sub.email} (sending unfiltered): ${err.message}`);
+        }
+      }
+
+      const { subject, html, hasContent, urls } = renderEmail(sub, digests, { appUrl, dateStr, edition: FREQ_LABEL[freq] });
       if (!hasContent) {
         skipped++;
-        await db.logRecipient(sendId, sub.email, "skipped", "no items in chosen areas");
-        console.log(`[newsletter] skip ${sub.email} (${freq}; nothing matched their choices)`);
+        await db.logRecipient(sendId, sub.email, "skipped", "nothing new for their choices this edition");
+        console.log(`[newsletter] skip ${sub.email} (${freq}; nothing new matched their choices)`);
         continue;
       }
       try {
         await sendEmail({ to: sub.email, subject, html });
         sent++;
         await db.logRecipient(sendId, sub.email, "sent", null);
-        console.log(`[newsletter] sent ${sub.email} (${freq})`);
+        if (trigger === "cron" && urls && urls.length) {
+          try { await db.logSentItems(sub.email, urls.map(normUrl)); }
+          catch (err) { console.error(`[newsletter] logSentItems failed: ${err.message}`); }
+        }
+        console.log(`[newsletter] sent ${sub.email} (${freq}; ${urls ? urls.length : 0} items)`);
       } catch (err) {
         failed++;
         await db.logRecipient(sendId, sub.email, "failed", err.message);
