@@ -380,21 +380,22 @@ async function start() {
     console.log("DATABASE_URL not set — newsletter subscriptions disabled.");
   }
 
-  // Morning watchdog: every weekday at 13:35 UTC (~30 min after the newsletter
-  // cron) verify today's run happened and email a status report. Lives here on
-  // the always-on web service so it stays independent of the cron it watches.
+  // Morning watchdog: every weekday at 12:15 UTC (~30 min after the 11:45 UTC
+  // newsletter cron) verify today's run happened and email a status report.
+  // Lives here on the always-on web service so it stays independent of the
+  // cron it watches.
   if (DB_ENABLED && process.env.RESEND_API_KEY) {
     let lastWatchdogDay = "";
     setInterval(() => {
       const now = new Date();
       const day = now.toISOString().slice(0, 10);
       const dow = now.getUTCDay();
-      if (dow >= 1 && dow <= 5 && now.getUTCHours() === 13 && now.getUTCMinutes() >= 35 && lastWatchdogDay !== day) {
+      if (dow >= 1 && dow <= 5 && now.getUTCHours() === 12 && now.getUTCMinutes() >= 15 && lastWatchdogDay !== day) {
         lastWatchdogDay = day;
         require("./jobs/watchdog").runWatchdog().catch(err => console.error("[watchdog] failed:", err.message));
       }
     }, 60 * 1000);
-    console.log("Watchdog armed (weekdays 13:35 UTC).");
+    console.log("Watchdog armed (weekdays 12:15 UTC).");
   }
 
   app.listen(PORT, () => console.log(`Running on port ${PORT}`));
