@@ -43,13 +43,17 @@ function reputationMatches(item, states, brands) {
 }
 
 // Reduce the shared digests to what this subscriber asked for.
+// "Wage & Hour" is an OPT-IN topic: it only appears for subscribers whose
+// topics explicitly include it — never as part of the "everything" default.
 function filterForSubscriber(digests, prefs) {
   const states = (prefs && Array.isArray(prefs.states)) ? prefs.states : [];
   const topics = (prefs && Array.isArray(prefs.topics)) ? prefs.topics : [];
   const brands = (prefs && Array.isArray(prefs.brands)) ? prefs.brands : [];
+  const topicOk = i => (i.topic === "Wage & Hour")
+    ? topics.includes("Wage & Hour")
+    : (!topics.length || !i.topic || topics.includes(i.topic));
   return {
-    policy: (digests.policy || []).filter(i =>
-      stateMatches(i.state, states) && (!topics.length || !i.topic || topics.includes(i.topic))),
+    policy: (digests.policy || []).filter(i => stateMatches(i.state, states) && topicOk(i)),
     fraud: (digests.fraud || []).filter(i => stateMatches(i.state, states)),
     reputation: (digests.reputation || []).filter(i => reputationMatches(i, states, brands)),
     reputationQuiet: digests.reputationQuiet || []
@@ -143,7 +147,7 @@ function sectionCard(emoji, title, count, rowsHtml) {
 function policySection(items) {
   if (!items || !items.length) return "";
   const rows = items.map((a, i) => row(
-    statePill(a.state) + ((a.urgency || "").toLowerCase() === "high" ? pill("High impact", "#d4537e", "#fdf0f4") : ""),
+    statePill(a.state) + (a.topic === "Wage & Hour" ? pill("WAGE & HOUR", PALETTE.blue, PALETTE.blueBg) : "") + ((a.urgency || "").toLowerCase() === "high" ? pill("High impact", "#d4537e", "#fdf0f4") : ""),
     a, i === items.length - 1
   )).join("");
   return sectionCard("📜", "Policy intelligence", `${items.length} item${items.length === 1 ? "" : "s"}`, rows);
