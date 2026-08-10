@@ -294,7 +294,16 @@ function renderEmail(subscriber, digests, opts = {}) {
 </body>
 </html>`;
 
-  return { subject, html, hasContent };
+  // URLs of every item actually included in this email (after pref filtering),
+  // so the caller can remember them and avoid repeats in later editions.
+  const urls = [];
+  if (hasContent) {
+    if (areas.includes("policy")) (digests.policy || []).forEach(i => { if (i.url) urls.push(i.url); });
+    if (areas.includes("fraud")) (digests.fraud || []).forEach(i => { if (i.url) urls.push(i.url); });
+    if (areas.includes("reputation")) (digests.reputation || []).forEach(i => { if (i.url) urls.push(i.url); });
+  }
+
+  return { subject, html, hasContent, urls };
 }
 
 module.exports = { renderEmail };
