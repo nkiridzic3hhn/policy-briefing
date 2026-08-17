@@ -1,12 +1,10 @@
 // Builds the branded weekly-snapshot HTML email from the generated digests.
 // Email-client-safe: table layout + inline styles (renders correctly in classic
-// Outlook, which uses Word's engine — no flexbox, no CSS classes, borders on
+// Outlook, which uses Word's engine - no flexbox, no CSS classes, borders on
 // all sides). Piece of Pi pink palette.
 
 const { WATCHLIST } = require("../lib/watchlist");
-
-const KNOWN_STATES = ["New York", "New Jersey", "Pennsylvania", "Massachusetts", "Connecticut",
-  "Georgia", "Michigan", "Indiana", "Colorado", "Maryland", "Washington DC"];
+const { STATES: KNOWN_STATES } = require("../lib/states");
 
 // Map each watchlist brand to the state(s) named in its context. Brands with no
 // state (network-wide: Honor Health Network, CaringPays, the CEO) match everyone.
@@ -36,7 +34,7 @@ function reputationMatches(item, states, brands) {
   if (!states || !states.length) return true;
   for (const a of agencies) {
     const known = AGENCY_STATES[a];
-    if (!known || !known.length) return true; // network-wide brand — everyone sees it
+    if (!known || !known.length) return true; // network-wide brand - everyone sees it
     if (known.some(st => states.includes(st))) return true;
   }
   return false;
@@ -44,7 +42,7 @@ function reputationMatches(item, states, brands) {
 
 // Reduce the shared digests to what this subscriber asked for.
 // "Wage & Hour" is an OPT-IN topic: it only appears for subscribers whose
-// topics explicitly include it — never as part of the "everything" default.
+// topics explicitly include it - never as part of the "everything" default.
 function filterForSubscriber(digests, prefs) {
   const states = (prefs && Array.isArray(prefs.states)) ? prefs.states : [];
   const topics = (prefs && Array.isArray(prefs.topics)) ? prefs.topics : [];
@@ -56,7 +54,11 @@ function filterForSubscriber(digests, prefs) {
     policy: (digests.policy || []).filter(i => stateMatches(i.state, states) && topicOk(i)),
     fraud: (digests.fraud || []).filter(i => stateMatches(i.state, states)),
     reputation: (digests.reputation || []).filter(i => reputationMatches(i, states, brands)),
-    reputationQuiet: digests.reputationQuiet || []
+    reputationQuiet: digests.reputationQuiet || [],
+    // Law changes filter on state only, never on topic. A subscriber who picked
+    // "Wage & Hour" still needs to know their state's licensure rule changed -
+    // an enacted deadline isn't optional reading the way a news topic is.
+    laws: (digests.laws || []).filter(i => stateMatches(i.jurisdiction || i.state, states))
   };
 }
 
@@ -144,6 +146,56 @@ function sectionCard(emoji, title, count, rowsHtml) {
   </table>`;
 }
 
+// -- Law changes --
+// These aren't news items, they're deadlines: what already became law, where,
+// and how long until it bites. Hence the countdown pill and the "what to do"
+// line instead of the usual source-first treatment.
+function prettyDate(ymd) {
+  if (!ymd) return "";
+  const d = new Date(ymd + "T00:00:00Z");
+  if (isNaN(d)) return ymd;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function countdownPill(item) {
+  const d = item.days_until;
+  if (d === null || d === undefined) {
+    return pill(`EFFECTIVE ${String(item.effective_text || "TBD").toUpperCase()}`, PALETTE.gray, PALETTE.grayBg);
+  }
+  if (d <= 0) return pill("IN EFFECT NOW", "#ffffff", PALETTE.red);
+  if (d <= 7) return pill(`${d} DAY${d === 1 ? "" : "S"} TO COMPLY`, "#ffffff", PALETTE.red);
+  if (d <= 30) return pill(`TAKES EFFECT IN ${d} DAYS`, PALETTE.amber, PALETTE.amberBg);
+  return pill(`EFFECTIVE ${prettyDate(item.effective_date).toUpperCase()}`, PALETTE.blue, PALETTE.blueBg);
+}
+
+function lawRow(item, isLast) {
+  const pills = countdownPill(item)
+    + statePill(item.jurisdiction || item.state)
+    + (item.category ? pill(item.category, PALETTE.muted, PALETTE.surface) : "")
+    + (item.first_seen ? pill("NEW", PALETTE.green, PALETTE.greenBg) : "");
+  const meta = [item.citation, item.source, item.effective_date ? "effective " + prettyDate(item.effective_date) : item.effective_text]
+    .filter(Boolean).join(" · ");
+  const metaHtml = meta
+    ? `<div style="font-size:12px;color:${PALETTE.dim};margin-top:6px;">${
+        item.url && String(item.url).indexOf("http") === 0
+          ? `<a href="${esc(item.url)}" style="color:${PALETTE.dim};text-decoration:underline;">${esc(meta)}</a>`
+          : esc(meta)}</div>`
+    : "";
+  return `<tr><td style="padding:15px 20px;${isLast ? "" : `border-bottom:1px solid ${PALETTE.divider};`}">
+    <div style="margin-bottom:5px;">${pills}</div>
+    <div style="font-size:14px;font-weight:700;color:${PALETTE.text};line-height:1.4;">${titleHtml(item)}</div>
+    <div style="font-size:13px;color:${PALETTE.body};line-height:1.55;margin-top:3px;">${esc(item.summary)}</div>
+    ${item.action ? `<div style="font-size:13px;color:${PALETTE.accent};line-height:1.55;margin-top:5px;"><strong>What to do:</strong> ${esc(item.action)}</div>` : ""}
+    ${metaHtml}
+  </td></tr>`;
+}
+
+function lawSection(items) {
+  if (!items || !items.length) return "";
+  const rows = items.map((l, i) => lawRow(l, i === items.length - 1)).join("");
+  return sectionCard("⚖️", "Law changes & deadlines", `${items.length} change${items.length === 1 ? "" : "s"}`, rows);
+}
+
 function policySection(items) {
   if (!items || !items.length) return "";
   const rows = items.map((a, i) => row(
@@ -175,7 +227,7 @@ function reputationSection(items, quiet) {
     html += `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
     <tr><td style="background:#faf3f6;border:1px dashed #e8c6d2;border-radius:14px;padding:13px 20px;">
-      <div style="font-size:12px;color:${PALETTE.muted};line-height:1.6;"><strong style="color:${PALETTE.body};">Quiet this week (${quiet.length} brand${quiet.length === 1 ? "" : "s"}):</strong> ${esc(quiet.join(", "))} — no third-party mentions found.</div>
+      <div style="font-size:12px;color:${PALETTE.muted};line-height:1.6;"><strong style="color:${PALETTE.body};">Quiet this week (${quiet.length} brand${quiet.length === 1 ? "" : "s"}):</strong> ${esc(quiet.join(", "))} - no third-party mentions found.</div>
     </td></tr>
   </table>`;
   }
@@ -185,6 +237,12 @@ function reputationSection(items, quiet) {
 // Pick the single most important item across all sections for the top box.
 function pickTopStory(digests, areas) {
   const has = a => areas.includes(a);
+  // A law that takes effect within a month outranks the news: it's the only
+  // item on the page with a date the company can miss.
+  if (has("policy")) {
+    const l = (digests.laws || []).find(i => i.days_until !== null && i.days_until !== undefined && i.days_until <= 30);
+    if (l) return { item: l, label: "law" };
+  }
   if (has("fraud")) {
     const f = (digests.fraud || []).find(i => (i.severity || "").toLowerCase() === "high") || (digests.fraud || [])[0];
     if (f) return { item: f, label: "fraud" };
@@ -207,8 +265,10 @@ function topStoryBox(top) {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
     <tr><td style="background:${PALETTE.bg};border:1px solid ${PALETTE.border};border-left:4px solid ${PALETTE.accent};border-radius:14px;padding:17px 21px;">
       <div style="font-size:11px;font-weight:700;color:${PALETTE.accent};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">⚡ The one thing to know</div>
+      ${top.label === "law" ? `<div style="margin-bottom:6px;">${countdownPill(item)}${statePill(item.jurisdiction || item.state)}</div>` : ""}
       <div style="font-size:17px;font-weight:700;color:${PALETTE.text};line-height:1.4;margin-bottom:6px;">${titleHtml(item)}</div>
       <div style="font-size:14px;color:${PALETTE.body};line-height:1.6;">${esc(item.summary)}</div>
+      ${top.label === "law" && item.action ? `<div style="font-size:14px;color:${PALETTE.accent};line-height:1.6;margin-top:6px;"><strong>What to do:</strong> ${esc(item.action)}</div>` : ""}
       ${sourceHtml(item)}
     </td></tr>
   </table>`;
@@ -216,6 +276,7 @@ function topStoryBox(top) {
 
 function statsStrip(digests, areas) {
   const cells = [];
+  if (areas.includes("policy") && (digests.laws || []).length) cells.push({ n: digests.laws.length, label: "Law changes" });
   if (areas.includes("policy")) cells.push({ n: (digests.policy || []).length, label: "Policy items" });
   if (areas.includes("fraud")) cells.push({ n: (digests.fraud || []).length, label: "Fraud cases" });
   if (areas.includes("reputation")) cells.push({ n: (digests.reputation || []).length, label: "Brand mentions" });
@@ -233,7 +294,7 @@ function statsStrip(digests, areas) {
 }
 
 // subscriber: { email, areas:[], token, prefs:{states,topics,brands,frequency} }
-// digests: { policy:[], fraud:[], reputation:[], reputationQuiet:[] }
+// digests: { policy:[], fraud:[], reputation:[], reputationQuiet:[], laws:[] }
 // opts.edition: "Daily" | "Weekly" | "Monthly" (display label; default Weekly)
 function renderEmail(subscriber, digests, opts = {}) {
   const appUrl = (opts.appUrl || "https://www.pieceofpi.app").replace(/\/$/, "");
@@ -243,11 +304,14 @@ function renderEmail(subscriber, digests, opts = {}) {
   digests = filterForSubscriber(digests, subscriber.prefs);
 
   let sections = "";
+  // Law changes lead: they're the only section with a deadline attached.
+  if (areas.includes("policy")) sections += lawSection(digests.laws);
   if (areas.includes("policy")) sections += policySection(digests.policy);
   if (areas.includes("fraud")) sections += fraudSection(digests.fraud);
   if (areas.includes("reputation")) sections += reputationSection(digests.reputation, digests.reputationQuiet);
 
   const itemCount =
+    (areas.includes("policy") ? (digests.laws || []).length : 0) +
     (areas.includes("policy") ? (digests.policy || []).length : 0) +
     (areas.includes("fraud") ? (digests.fraud || []).length : 0) +
     (areas.includes("reputation") ? (digests.reputation || []).length : 0);
@@ -271,7 +335,7 @@ function renderEmail(subscriber, digests, opts = {}) {
 
         <!-- Header -->
         <tr><td align="center" style="padding-bottom:18px;">
-          <img src="cid:logo" alt="🥧 Piece of Pi" height="176" style="height:176px;display:block;margin:0 auto 8px auto;">
+          <img src="cid:logo" alt="Piece of Pi" height="176" style="height:176px;display:block;margin:0 auto 8px auto;">
           <div style="font-size:24px;font-weight:700;color:${PALETTE.accent};">Piece of Pi</div>
           <div style="font-size:13px;color:${PALETTE.muted};margin-top:4px;">${edition} snapshot${dateStr ? " · " + esc(dateStr) : ""}</div>
         </td></tr>
@@ -300,14 +364,19 @@ function renderEmail(subscriber, digests, opts = {}) {
 
   // URLs of every item actually included in this email (after pref filtering),
   // so the caller can remember them and avoid repeats in later editions.
+  // Law changes are deliberately NOT in this list: they are meant to recur as
+  // their effective date approaches, and the tracker's milestone stages - not
+  // the sent-items memory - decide when that happens.
   const urls = [];
+  const lawAlerts = [];
   if (hasContent) {
     if (areas.includes("policy")) (digests.policy || []).forEach(i => { if (i.url) urls.push(i.url); });
     if (areas.includes("fraud")) (digests.fraud || []).forEach(i => { if (i.url) urls.push(i.url); });
     if (areas.includes("reputation")) (digests.reputation || []).forEach(i => { if (i.url) urls.push(i.url); });
+    if (areas.includes("policy")) (digests.laws || []).forEach(i => { if (i.id) lawAlerts.push({ id: i.id, stage: i.stage }); });
   }
 
-  return { subject, html, hasContent, urls };
+  return { subject, html, hasContent, urls, lawAlerts };
 }
 
 module.exports = { renderEmail };
