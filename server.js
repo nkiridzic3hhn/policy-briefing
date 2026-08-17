@@ -81,13 +81,24 @@ app.post("/api/newsletter/run-key", async (req, res) => {
     // { dedupe: true } makes the run behave exactly like a scheduled send
     // (drops already-sent stories and remembers the new ones).
     const body = req.body || {};
+    // { laws: true } runs only the law-change sweep (no email). Add
+    // { backfill: true } to widen the search window to a year - that is how the
+    // calendar gets seeded with changes enacted months ago whose effective dates
+    // are still ahead of us.
+    if (body.laws === true) {
+      const lawtracker = require("./lib/lawtracker");
+      await db.init();
+      const result = await lawtracker.sweep({ force: true, backfill: body.backfill === true });
+      const pending = await lawtracker.pending();
+      return res.json({ ok: true, sweep: result, pendingAlerts: pending.length });
+    }
     // { watchdog: true } runs the health check + status email instead of a send.
     if (body.watchdog === true) {
       const { runWatchdog } = require("./jobs/watchdog");
       const result = await runWatchdog();
       return res.json({ ok: true, watchdog: result });
     }
-    const result = await runNewsletter({ trigger: "manual", only: body.only, dedupe: body.dedupe === true });
+    const result = await runNewsletter({ trigger: "manual", only: body.only, dedupe: body.dedupe === true, forceSweep: body.sweep === true });
     res.json({ ok: true, result });
   } catch (err) {
     console.error("run-key newsletter run failed:", err);
@@ -95,10 +106,9 @@ app.post("/api/newsletter/run-key", async (req, res) => {
   }
 });
 
-// --- Newsletter signup (open routes — no login required) ---
+// --- Newsletter signup (open routes - no login required) ---
 const VALID_AREAS = ["policy", "reputation", "fraud"];
-const VALID_STATES = ["New York", "New Jersey", "Pennsylvania", "Massachusetts", "Connecticut",
-  "Georgia", "Michigan", "Indiana", "Colorado", "Maryland", "Washington DC"];
+const { STATES: VALID_STATES } = require("./lib/states");
 const VALID_TOPICS = ["Medicaid Policy", "Home Care", "HCBS/Waivers", "EVV/Compliance",
   "Workforce", "Budget/Funding", "Legislation", "Wage & Hour"];
 const { WATCHLIST } = require("./lib/watchlist");
@@ -190,6 +200,10 @@ function requireAdmin(req, res, next) {
 
 // Sample content used by the email design preview (no API calls, instant).
 const SAMPLE_DIGESTS = {
+  laws: [
+    { id: 901, jurisdiction: "New Jersey", state: "New Jersey", title: "NJ raises the temporary-disability and family-leave wage base", summary: "The enacted change lifts the taxable wage base used for TDI and FLI contributions for the coming plan year.", action: "Update payroll withholding tables before the first January payroll.", category: "Wage & Hour", citation: "P.L. 2026 c.42", effective_date: "2027-01-01", effective_text: "January 1, 2027", days_until: 45, impact: "high", source: "NJ Dept. of Labor", url: "https://www.nj.gov/labor/", verified: true, stage: "60d", first_seen: true },
+    { id: 902, jurisdiction: "Federal", state: "Federal", title: "DOL final rule updates recordkeeping for home care workers", summary: "The final rule published in the Federal Register revises how employers must retain hours-worked records for domestic service employees.", action: "Confirm the timekeeping system retains records for the new period.", category: "Wage & Hour", citation: "RIN 1235-AA43", effective_date: "2026-09-15", effective_text: "September 15, 2026", days_until: 5, impact: "medium", source: "Federal Register", url: "https://www.federalregister.gov", verified: true, stage: "7d", first_seen: false }
+  ],
   policy: [
     { title: "CMS finalizes Access Rule 80/20 pass-through for HCBS", summary: "The final rule requires 80% of Medicaid payments for homemaker, home health aide, and personal care services to go to direct-care worker compensation. States have a multi-year phase-in.", state: "Federal/National", topic: "HCBS/Waivers", date: "March 2026", source: "CMS.gov", url: "https://www.cms.gov", urgency: "high" },
     { title: "State budget adds $120M for home care rate increase", summary: "The enacted budget raises personal care reimbursement rates by an average of 6% and funds a wage floor for aides.", state: "New York", topic: "Budget/Funding", date: "April 2026", source: "State Health Dept", url: "", urgency: "medium" }
@@ -286,6 +300,84 @@ app.get("/api/admin/subscribers.csv", ...adminApi(async (req, res) => {
   res.send(lines.join("\n"));
 }));
 
+// -- Law-change tracker (compliance calendar) --
+app.get("/api/admin/laws", ...adminApi(async (req, res) => {
+  const lawtracker = require("./lib/lawtracker");
+  res.json({ laws: await lawtracker.calendar() });
+}));
+
+app.post("/api/admin/laws/sweep", ...adminApi(async (req, res) => {
+  const lawtracker = require("./lib/lawtracker");
+  const result = await lawtracker.sweep({ force: true, backfill: !!(req.body && req.body.backfill) });
+  res.json({ ok: true, sweep: result });
+}));
+
+app.delete("/api/admin/laws/:id", ...adminApi(async (req, res) => {
+  const row = await db.deleteLawChange(parseInt(req.params.id, 10));
+  if (!row) return res.status(404).json({ error: "Not found." });
+  res.json({ ok: true, title: row.title });
+}));
+
+// Human-readable compliance calendar: every enacted change being tracked, not
+// just the ones due for an alert. Server-rendered so it needs no build step.
+app.get("/admin/laws", requireAdmin, async (req, res) => {
+  if (!DB_ENABLED) return res.status(503).send("Database not configured.");
+  const lawtracker = require("./lib/lawtracker");
+  let laws = [];
+  try { laws = await lawtracker.calendar(); }
+  catch (err) { return res.status(500).send("Could not load the calendar: " + err.message); }
+  const e = v => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const badge = l => {
+    const d = l.days_until;
+    if (d === null || d === undefined) return '<span class="b gray">' + e(l.effective_text || "date TBD") + '</span>';
+    if (d <= 0) return '<span class="b red">in effect</span>';
+    if (d <= 30) return '<span class="b red">' + d + ' days</span>';
+    if (d <= 60) return '<span class="b amber">' + d + ' days</span>';
+    return '<span class="b blue">' + d + ' days</span>';
+  };
+  const rows = laws.map(l =>
+    '<tr><td>' + badge(l) + '<div class="dim">' + e(l.effective_date || l.effective_text) + '</div></td>' +
+    '<td><strong>' + e(l.jurisdiction) + '</strong><div class="dim">' + e(l.category) + '</div></td>' +
+    '<td><a href="' + e(l.url) + '" target="_blank" rel="noopener">' + e(l.title) + '</a>' +
+    '<div class="dim">' + e(l.summary) + '</div>' +
+    (l.action ? '<div class="act">What to do: ' + e(l.action) + '</div>' : '') + '</td>' +
+    '<td class="dim">' + e(l.citation || "") + '<div>' + e(l.source || "") + '</div>' +
+    '<div>' + (l.verified ? "source-checked" : "unverified") + '</div>' +
+    '<div>alerted: ' + (l.first_seen ? "not yet" : e(l.stage)) + '</div></td></tr>').join("");
+  const body = rows || '<tr><td colspan="4" class="dim">Nothing tracked yet. Run a backfill to seed the calendar.</td></tr>';
+  res.set("Content-Type", "text/html").send(
+    '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Law changes - Piece of Pi</title>' +
+    '<style>body{font-family:Helvetica Neue,Arial,sans-serif;background:#f4e9ed;color:#2a0f18;margin:0;padding:28px 16px;}' +
+    '.w{max-width:1080px;margin:auto;}h1{color:#c03060;font-size:22px;margin:0 0 4px;}' +
+    'p.sub{color:#8a4055;font-size:13px;margin:0 0 18px;}' +
+    'table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #f1d6de;border-radius:14px;overflow:hidden;}' +
+    'th,td{text-align:left;padding:12px 14px;border-bottom:1px solid #f7e4ea;font-size:13px;vertical-align:top;}' +
+    'th{background:#fdf2f5;color:#8a4055;font-size:11px;text-transform:uppercase;letter-spacing:.5px;}' +
+    'a{color:#c03060;}.dim{color:#b8788a;font-size:12px;margin-top:3px;}' +
+    '.act{color:#c03060;font-size:12px;margin-top:4px;}' +
+    '.b{display:inline-block;font-size:11px;font-weight:700;border-radius:9px;padding:2px 8px;}' +
+    '.red{color:#fff;background:#b02040;}.amber{color:#a05a1c;background:#fbe3cf;}' +
+    '.blue{color:#2a5ea8;background:#e9f0fa;}.gray{color:#6b6353;background:#f4f1ea;}' +
+    '.bar{margin-bottom:14px;}button{background:#c03060;color:#fff;border:0;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;margin-right:6px;}' +
+    'button.alt{background:#8a4055;}</style></head><body><div class="w">' +
+    '<h1>Law changes &amp; deadlines</h1>' +
+    '<p class="sub">Enacted laws and final rules only, in the states we operate in plus federal. ' + laws.length +
+    ' tracked. <a href="/admin">Back to admin</a></p>' +
+    '<div class="bar"><button onclick="sweep(false)">Run sweep now</button>' +
+    '<button class="alt" onclick="sweep(true)">Backfill (past year)</button>' +
+    '<span id="msg" class="dim"></span></div>' +
+    '<table><thead><tr><th>Effective</th><th>Where</th><th>Change</th><th>Source</th></tr></thead><tbody>' +
+    body + '</tbody></table></div><script>' +
+    'async function sweep(backfill){document.getElementById("msg").textContent="Running (a couple of minutes)...";' +
+    'try{var r=await fetch("/api/admin/laws/sweep",{method:"POST",headers:{"Content-Type":"application/json"},' +
+    'body:JSON.stringify({backfill:backfill})});var d=await r.json();' +
+    'document.getElementById("msg").textContent=d.error?("Error: "+d.error):("Done - "+d.sweep.added+" new, "+d.sweep.updated+" refreshed.");' +
+    'if(!d.error)setTimeout(function(){location.reload();},1200);}' +
+    'catch(err){document.getElementById("msg").textContent="Error: "+err.message;}}' +
+    '</script></body></html>');
+});
+
 app.get("/api/admin/sends", ...adminApi(async (req, res) => {
   res.json({ sends: await db.listSends(50) });
 }));
@@ -377,7 +469,7 @@ async function start() {
     try { await db.init(); console.log("DB ready."); }
     catch (err) { console.error("DB init failed (subscriptions disabled until fixed):", err.message); }
   } else {
-    console.log("DATABASE_URL not set — newsletter subscriptions disabled.");
+    console.log("DATABASE_URL not set - newsletter subscriptions disabled.");
   }
 
   // Morning watchdog: every weekday at 12:15 UTC (~30 min after the 11:45 UTC
