@@ -2,13 +2,14 @@
 // manually via `npm run newsletter` or the key-protected /api/newsletter/run-key.
 //
 // Frequency-aware: each subscriber has prefs.frequency of "daily" (weekday
-// mornings, 1-day lookback), "weekly" (Mondays, 7-day lookback — the default),
+// mornings, 1-day lookback), "weekly" (Mondays, 7-day lookback - the default),
 // or "monthly" (first Monday of the month, 30-day lookback). On each run, only
 // subscribers whose cadence is due get an email; digests are generated once per
 // lookback needed and then filtered per subscriber.
 
 const db = require("../lib/db");
 const { generateDigests } = require("../lib/briefings");
+const lawtracker = require("../lib/lawtracker");
 const { renderEmail } = require("../emails/render");
 const { sendEmail } = require("../lib/email");
 
@@ -25,8 +26,11 @@ function subscriberFrequency(sub) {
 }
 
 // Drop items a subscriber has already been sent in a prior edition. Matching
-// is by normalized URL — the same story from the same source never repeats.
+// is by normalized URL - the same story from the same source never repeats.
 function normUrl(u) { return String(u || "").trim().replace(/\/$/, "").toLowerCase(); }
+// Law changes are intentionally exempt: they recur on their own milestone
+// schedule (found -> 60d -> 30d -> 7d -> in effect), not on "have we sent this
+// URL before".
 function dropSeen(digests, seenSet) {
   if (!seenSet || !seenSet.size) return digests;
   const filter = list => (list || []).filter(i => !i.url || !seenSet.has(normUrl(i.url)));
@@ -86,9 +90,22 @@ async function runNewsletter(opts = {}) {
     console.log(`[newsletter] ${subscribers.length} subscriber(s) due; areas: ${Array.from(neededAreas).join(", ")}; lookbacks: ${Array.from(neededDays).join(",")}d`);
 
     // Generate digests once per lookback.
+    // The law sweep is shared across lookbacks and throttled to once a day, so
+    // only the first digest generation asks for it. Scheduled runs sweep;
+    // manual/test sends only read the existing calendar, because ~30 extra
+    // searches plus source checks would push an interactive run past a couple of
+    // minutes. Use opts.forceSweep (or the run-key {"laws":true} call) to sweep
+    // on demand. opts.backfill widens the window to a year, for seeding.
+    const doSweep = trigger === "cron" || opts.forceSweep === true || opts.backfill === true;
     const digestsByDays = {};
+    let sweepDone = false;
     for (const days of neededDays) {
-      digestsByDays[days] = await generateDigests(Array.from(neededAreas), days);
+      digestsByDays[days] = await generateDigests(Array.from(neededAreas), days, {
+        sweep: doSweep && !sweepDone,
+        backfill: opts.backfill === true,
+        forceSweep: opts.forceSweep === true
+      });
+      sweepDone = true;
     }
 
     const itemCounts = {};
@@ -97,12 +114,15 @@ async function runNewsletter(opts = {}) {
         if (Array.isArray(d[k])) itemCounts[`${k}@${days}d`] = d[k].length;
       });
     });
-    console.log(`[newsletter] digest items — ${Object.entries(itemCounts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
+    console.log(`[newsletter] digest items - ${Object.entries(itemCounts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
 
     const appUrl = process.env.APP_URL || "https://www.pieceofpi.app";
     const dateStr = todayLabel();
 
     let sent = 0, skipped = 0, failed = 0;
+    // Law-change milestones actually delivered this run, keyed by id so the same
+    // change is only marked once no matter how many subscribers received it.
+    const alerted = new Map();
     for (const sub of subscribers) {
       const freq = subscriberFrequency(sub);
       let digests = digestsByDays[FREQ_DAYS[freq]];
@@ -119,7 +139,7 @@ async function runNewsletter(opts = {}) {
         }
       }
 
-      const { subject, html, hasContent, urls } = renderEmail(sub, digests, { appUrl, dateStr, edition: FREQ_LABEL[freq] });
+      const { subject, html, hasContent, urls, lawAlerts } = renderEmail(sub, digests, { appUrl, dateStr, edition: FREQ_LABEL[freq] });
       if (!hasContent) {
         skipped++;
         await db.logRecipient(sendId, sub.email, "skipped", "nothing new for their choices this edition");
@@ -134,6 +154,7 @@ async function runNewsletter(opts = {}) {
           try { await db.logSentItems(sub.email, urls.map(normUrl)); }
           catch (err) { console.error(`[newsletter] logSentItems failed: ${err.message}`); }
         }
+        (lawAlerts || []).forEach(a => alerted.set(a.id, a));
         console.log(`[newsletter] sent ${sub.email} (${freq}; ${urls ? urls.length : 0} items)`);
       } catch (err) {
         failed++;
@@ -142,11 +163,18 @@ async function runNewsletter(opts = {}) {
       }
     }
 
+    // Only a real (or explicitly deduped) send advances a law's milestone - a
+    // test send must not burn an alert the subscribers haven't received yet.
+    if (dedupe && alerted.size) {
+      await lawtracker.markAlerted(Array.from(alerted.values()));
+      console.log(`[newsletter] marked ${alerted.size} law change(s) as alerted.`);
+    }
+
     await db.finalizeSend(sendId, {
       areas: Array.from(neededAreas), itemCounts, subscribers: subscribers.length,
       sent, skipped, failed, status: "done"
     });
-    console.log(`[newsletter] done — sent:${sent} skipped:${skipped} failed:${failed}`);
+    console.log(`[newsletter] done - sent:${sent} skipped:${skipped} failed:${failed}`);
     return { sendId, sent, skipped, failed, subscribers: subscribers.length };
   } catch (err) {
     console.error("[newsletter] run failed:", err.message);
