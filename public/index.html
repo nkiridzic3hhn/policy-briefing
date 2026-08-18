@@ -485,6 +485,9 @@
 
 </div>
 
+<!-- Shared with the newsletter (lib/owned.js wraps the same file server-side),
+     so the dashboard and the email agree on what counts as our own post. -->
+<script src="/owned-filter.js"></script>
 <script>
 const STATES = [
   "Federal/National","Alabama","Alaska","Arizona","Arkansas","California",
@@ -564,6 +567,13 @@ const EXCLUDE = [
   "agilityhomecare.com",
   "juniperhomecare.com"
 ];
+
+// The prompt below still asks the model to skip our own posts, but asking is not
+// enforcing - self-posted results used to slip through. This filter is the rule,
+// applied to every result before it renders. It also catches the agency sites
+// and social accounts that were never added to EXCLUDE above (most of them), by
+// matching the URL against the brand name itself.
+const ownedFilter = OwnedFilter.createFilter(WATCHLIST, EXCLUDE);
 
 const CHANNELS = [
   { id: "News",    label: "News & press"   },
@@ -1042,6 +1052,7 @@ async function runReputation() {
 
   repResults = [];
   var errors = 0;
+  var selfPosted = 0; // our own posts/job ads removed before rendering
   repLoading(0, batches.length);
 
   for (var k = 0; k < batches.length; k++) {
@@ -1051,7 +1062,11 @@ async function runReputation() {
       var clean = text.replace(/```json|```/g, "").trim();
       var match = clean.match(/\[[\s\S]*\]/);
       var data  = JSON.parse(match ? match[0] : clean);
-      if (Array.isArray(data)) repResults = repResults.concat(data);
+      if (Array.isArray(data)) {
+        var third = ownedFilter.filterSelfPosted(data, "dashboard");
+        selfPosted += third.dropped;
+        repResults = repResults.concat(third.items);
+      }
     } catch(err) {
       errors++;
     }
@@ -1067,6 +1082,7 @@ async function runReputation() {
   } else {
     renderReputation();
     if (errors) repShowError("The scan ran but every batch errored \u2014 likely a timeout. Try fewer names or a shorter date range.");
+    else if (selfPosted) repShowError("Scan finished with no third-party mentions — the only " + selfPosted + " result" + (selfPosted === 1 ? "" : "s") + " found were our own posts or job ads, which this view leaves out. Try widening the date range.");
     else repShowError("Scan finished but found no third-party mentions for the selected names in this window. Try widening the date range or selecting the bigger names (Honor Health Network, Quality Healthcare).");
   }
 
