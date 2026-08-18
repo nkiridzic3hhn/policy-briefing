@@ -90,7 +90,7 @@ branded "weekly snapshot" briefing. Every email has a one-click unsubscribe link
 - **Schedule** — a Railway cron service runs `node jobs/newsletter.js` on
   `0 13 * * 1` (Mondays, 13:00 UTC ≈ 9am ET).
 
-## Law changes & deadlines (compliance calendar)
+## Labor law changes and deadlines (compliance calendar)
 
 The digest engine above is a *recency* sweep: it only sees what was published in
 the last 1/7/30 days. That misses the thing an operator most needs — a law signed
@@ -114,9 +114,9 @@ news window, and nobody gets reminded before the deadline.
    and the day it is in effect. Each row remembers the last milestone it was
    alerted at, so nothing repeats and nothing is silently skipped. This is why
    law items are exempt from the sent-items dedupe that governs news stories.
-4. **In the email** — a "Law changes & deadlines" section leads the briefing for
-   anyone subscribed to Policy Intelligence, with a countdown pill and a
-   "What to do" line. It filters on the subscriber's states but deliberately
+4. **In the email** — a "Labor law changes and deadlines" section leads the
+   briefing for anyone subscribed to Policy Intelligence, with a countdown pill
+   and a "What to do" line. It filters on the subscriber's states but deliberately
    **not** on their topics: an enacted deadline is not optional reading the way a
    news topic is. Anything landing within 30 days becomes the "one thing to know".
 
@@ -151,7 +151,7 @@ dashboard login) provides:
 - **Send now** — trigger an edition on demand (also logged to history).
 - **Preview email** — renders the branded email design with sample data, instantly,
   no API cost.
-- **Law changes** — `/admin/laws` lists every tracked enacted change with its
+- **Labor law changes** — `/admin/laws` lists every tracked enacted change with its
   effective date, countdown, source, and whether it has been alerted yet.
 
 **Test a send without waiting for the schedule**
