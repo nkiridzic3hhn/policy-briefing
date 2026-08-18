@@ -343,6 +343,7 @@ app.get("/admin/laws", requireAdmin, async (req, res) => {
     (l.action ? '<div class="act">What to do: ' + e(l.action) + '</div>' : '') + '</td>' +
     '<td class="dim">' + e(l.citation || "") + '<div>' + e(l.source || "") + '</div>' +
     '<div>' + (l.verified ? "source-checked" : "unverified") + '</div>' +
+    '<div' + (l.needs_better_source ? ' style="color:#a05a1c;"' : '') + '>' + e(l.source_tier_label || "") + '</div>' +
     '<div>alerted: ' + (l.first_seen ? "not yet" : e(l.stage)) + '</div></td></tr>').join("");
   const body = rows || '<tr><td colspan="4" class="dim">Nothing tracked yet. Run a backfill to seed the calendar.</td></tr>';
   res.set("Content-Type", "text/html").send(

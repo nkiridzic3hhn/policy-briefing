@@ -175,7 +175,9 @@ function lawRow(item, isLast) {
     + statePill(item.jurisdiction || item.state)
     + (item.category ? pill(item.category, PALETTE.muted, PALETTE.surface) : "")
     + (item.first_seen ? pill("NEW", PALETTE.green, PALETTE.greenBg) : "");
-  const meta = [item.citation, item.source, item.effective_date ? "effective " + prettyDate(item.effective_date) : item.effective_text]
+  // The source's authority rides along with the citation: the verify pass proves
+  // a page says this, not that the page is the agency that made the rule.
+  const meta = [item.citation, item.source, item.effective_date ? "effective " + prettyDate(item.effective_date) : item.effective_text, item.source_tier_label]
     .filter(Boolean).join(" · ");
   const metaHtml = meta
     ? `<div style="font-size:12px;color:${PALETTE.dim};margin-top:6px;">${
