@@ -347,7 +347,7 @@ app.get("/admin/laws", requireAdmin, async (req, res) => {
   const body = rows || '<tr><td colspan="4" class="dim">Nothing tracked yet. Run a backfill to seed the calendar.</td></tr>';
   res.set("Content-Type", "text/html").send(
     '<!DOCTYPE html><html><head><meta charset="utf-8">' +
-    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Law changes - Piece of Pi</title>' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Labor law changes - Piece of Pi</title>' +
     '<style>body{font-family:Helvetica Neue,Arial,sans-serif;background:#f4e9ed;color:#2a0f18;margin:0;padding:28px 16px;}' +
     '.w{max-width:1080px;margin:auto;}h1{color:#c03060;font-size:22px;margin:0 0 4px;}' +
     'p.sub{color:#8a4055;font-size:13px;margin:0 0 18px;}' +
@@ -361,7 +361,7 @@ app.get("/admin/laws", requireAdmin, async (req, res) => {
     '.blue{color:#2a5ea8;background:#e9f0fa;}.gray{color:#6b6353;background:#f4f1ea;}' +
     '.bar{margin-bottom:14px;}button{background:#c03060;color:#fff;border:0;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;margin-right:6px;}' +
     'button.alt{background:#8a4055;}</style></head><body><div class="w">' +
-    '<h1>Law changes &amp; deadlines</h1>' +
+    '<h1>Labor law changes and deadlines</h1>' +
     '<p class="sub">Enacted laws and final rules only, in the states we operate in plus federal. ' + laws.length +
     ' tracked. <a href="/admin">Back to admin</a></p>' +
     '<div class="bar"><button onclick="sweep(false)">Run sweep now</button>' +
