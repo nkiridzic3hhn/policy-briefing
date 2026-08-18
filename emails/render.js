@@ -195,7 +195,7 @@ function lawRow(item, isLast) {
 function lawSection(items) {
   if (!items || !items.length) return "";
   const rows = items.map((l, i) => lawRow(l, i === items.length - 1)).join("");
-  return sectionCard("⚖️", "Law changes & deadlines", `${items.length} change${items.length === 1 ? "" : "s"}`, rows);
+  return sectionCard("⚖️", "Labor law changes and deadlines", `${items.length} change${items.length === 1 ? "" : "s"}`, rows);
 }
 
 function policySection(items) {
