@@ -5,6 +5,8 @@
 
 const { WATCHLIST } = require("../lib/watchlist");
 const { STATES: KNOWN_STATES } = require("../lib/states");
+// Which item leads the email and supplies the subject line.
+const { pickTopStory } = require("./toplead");
 
 // Map each watchlist brand to the state(s) named in its context. Brands with no
 // state (network-wide: Honor Health Network, CaringPays, the CEO) match everyone.
@@ -232,30 +234,6 @@ function reputationSection(items, quiet) {
   </table>`;
   }
   return html;
-}
-
-// Pick the single most important item across all sections for the top box.
-function pickTopStory(digests, areas) {
-  const has = a => areas.includes(a);
-  // A law that takes effect within a month outranks the news: it's the only
-  // item on the page with a date the company can miss.
-  if (has("policy")) {
-    const l = (digests.laws || []).find(i => i.days_until !== null && i.days_until !== undefined && i.days_until <= 30);
-    if (l) return { item: l, label: "law" };
-  }
-  if (has("fraud")) {
-    const f = (digests.fraud || []).find(i => (i.severity || "").toLowerCase() === "high") || (digests.fraud || [])[0];
-    if (f) return { item: f, label: "fraud" };
-  }
-  if (has("policy")) {
-    const p = (digests.policy || []).find(i => (i.urgency || "").toLowerCase() === "high") || (digests.policy || [])[0];
-    if (p) return { item: p, label: "policy" };
-  }
-  if (has("reputation")) {
-    const r = (digests.reputation || []).find(i => ["negative", "review"].includes((i.sentiment || "").toLowerCase()));
-    if (r) return { item: r, label: "reputation" };
-  }
-  return null;
 }
 
 function topStoryBox(top) {
