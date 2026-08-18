@@ -60,7 +60,8 @@ function filterForSubscriber(digests, prefs) {
     // Law changes filter on state only, never on topic. A subscriber who picked
     // "Wage & Hour" still needs to know their state's licensure rule changed -
     // an enacted deadline isn't optional reading the way a news topic is.
-    laws: (digests.laws || []).filter(i => stateMatches(i.jurisdiction || i.state, states))
+    laws: (digests.laws || []).filter(i => stateMatches(i.jurisdiction || i.state, states)),
+    lawsCalendar: (digests.lawsCalendar || []).filter(i => stateMatches(i.jurisdiction || i.state, states))
   };
 }
 
@@ -194,10 +195,42 @@ function lawRow(item, isLast) {
   </td></tr>`;
 }
 
-function lawSection(items) {
-  if (!items || !items.length) return "";
-  const rows = items.map((l, i) => lawRow(l, i === items.length - 1)).join("");
-  return sectionCard("⚖️", "Labor law changes and deadlines", `${items.length} change${items.length === 1 ? "" : "s"}`, rows);
+// One compact line per deadline the reader has already been told about: enough
+// to see it coming, not enough to make them re-read it every edition.
+function calendarRow(item, isLast) {
+  const when = item.effective_date ? prettyDate(item.effective_date) : (item.effective_text || "date TBD");
+  const days = item.days_until === null || item.days_until === undefined
+    ? "" : (item.days_until <= 0 ? "in effect" : `${item.days_until}d`);
+  return `<tr><td style="padding:9px 20px;${isLast ? "" : `border-bottom:1px solid ${PALETTE.divider};`}">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:${PALETTE.accent};display:inline-block;min-width:44px;">${esc(days)}</span>
+    <span style="font-size:12px;color:${PALETTE.muted};">${esc(item.jurisdiction || item.state)}</span>
+    <span style="font-size:13px;color:${PALETTE.text};"> &middot; ${titleHtml(item)}</span>
+    <span style="font-size:12px;color:${PALETTE.dim};"> &middot; ${esc(when)}</span>
+  </td></tr>`;
+}
+
+// `due` crossed a milestone this edition and gets the full write-up. `all` is
+// every open deadline; whatever is not already above it is listed compactly, so
+// the reader can always see the whole calendar without re-reading it.
+function lawSection(due, all) {
+  due = due || [];
+  const shownIds = new Set(due.map(l => l.id).filter(v => v !== undefined && v !== null));
+  const rest = (all || []).filter(l => !shownIds.has(l.id));
+  if (!due.length && !rest.length) return "";
+
+  let html = "";
+  if (due.length) {
+    const rows = due.map((l, i) => lawRow(l, i === due.length - 1)).join("");
+    html += sectionCard("⚖️", "Labor law changes and deadlines",
+      `${due.length} new or updated`, rows);
+  }
+  if (rest.length) {
+    const rows = rest.map((l, i) => calendarRow(l, i === rest.length - 1)).join("");
+    const title = due.length ? "Also on your compliance calendar" : "Labor law changes and deadlines";
+    html += sectionCard(due.length ? "🗓️" : "⚖️", title,
+      `${rest.length} tracked`, rows);
+  }
+  return html;
 }
 
 function policySection(items) {
@@ -256,7 +289,8 @@ function topStoryBox(top) {
 
 function statsStrip(digests, areas) {
   const cells = [];
-  if (areas.includes("policy") && (digests.laws || []).length) cells.push({ n: digests.laws.length, label: "Law changes" });
+  const lawCount = Math.max((digests.laws || []).length, (digests.lawsCalendar || []).length);
+  if (areas.includes("policy") && lawCount) cells.push({ n: lawCount, label: "Law changes" });
   if (areas.includes("policy")) cells.push({ n: (digests.policy || []).length, label: "Policy items" });
   if (areas.includes("fraud")) cells.push({ n: (digests.fraud || []).length, label: "Fraud cases" });
   if (areas.includes("reputation")) cells.push({ n: (digests.reputation || []).length, label: "Brand mentions" });
@@ -285,13 +319,13 @@ function renderEmail(subscriber, digests, opts = {}) {
 
   let sections = "";
   // Law changes lead: they're the only section with a deadline attached.
-  if (areas.includes("policy")) sections += lawSection(digests.laws);
+  if (areas.includes("policy")) sections += lawSection(digests.laws, digests.lawsCalendar);
   if (areas.includes("policy")) sections += policySection(digests.policy);
   if (areas.includes("fraud")) sections += fraudSection(digests.fraud);
   if (areas.includes("reputation")) sections += reputationSection(digests.reputation, digests.reputationQuiet);
 
   const itemCount =
-    (areas.includes("policy") ? (digests.laws || []).length : 0) +
+    (areas.includes("policy") ? Math.max((digests.laws || []).length, (digests.lawsCalendar || []).length) : 0) +
     (areas.includes("policy") ? (digests.policy || []).length : 0) +
     (areas.includes("fraud") ? (digests.fraud || []).length : 0) +
     (areas.includes("reputation") ? (digests.reputation || []).length : 0);

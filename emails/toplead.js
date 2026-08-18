@@ -7,10 +7,13 @@
 // rather than falling back to a generic "your snapshot" subject.
 function pickTopStory(digests, areas) {
   const has = a => areas.includes(a);
-  const laws = has("policy") ? (digests.laws || []) : [];
+  const due = has("policy") ? (digests.laws || []) : [];
+  // The imminent-deadline check runs over the WHOLE calendar, not just what is
+  // new. A deadline nine days out still leads the email even if the reader was
+  // told about it last week - urgency beats novelty when someone can miss a date.
+  const all = has("policy") ? (digests.lawsCalendar || []) : [];
+  const laws = all.length ? all : due;
 
-  // A law that takes effect within a month outranks the news: it's the only
-  // item on the page carrying a date the company can miss.
   const soon = laws.find(i => i.days_until !== null && i.days_until !== undefined && i.days_until <= 30);
   if (soon) return { item: soon, label: "law" };
 
@@ -28,7 +31,9 @@ function pickTopStory(digests, areas) {
   }
 
   // Nothing but law changes, none of them imminent (a compliance-only reader
-  // such as HR). The nearest deadline still beats an empty lead.
+  // such as HR). Prefer something new to lead with; otherwise the nearest
+  // deadline on the calendar still beats an empty lead.
+  if (due.length) return { item: due[0], label: "law" };
   if (laws.length) return { item: laws[0], label: "law" };
   return null;
 }
