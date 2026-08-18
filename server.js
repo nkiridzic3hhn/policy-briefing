@@ -389,10 +389,16 @@ app.get("/api/admin/sends/:id", ...adminApi(async (req, res) => {
   res.json({ send });
 }));
 
+// Send an edition on demand. Body { only: "someone@x.com" } sends to just that
+// subscriber - the way to see a real edition without mailing the whole network.
+// Manual sends never burn a law-change milestone, so a test does not stop the
+// scheduled edition from alerting on the same deadlines.
 app.post("/api/admin/send", ...adminApi(async (req, res) => {
   const { runNewsletter } = require("./jobs/newsletter");
-  const result = await runNewsletter({ trigger: "manual" });
-  res.json({ ok: true, result });
+  const only = String((req.body && req.body.only) || "").toLowerCase().trim();
+  if (only && !EMAIL_RE.test(only)) return res.status(400).json({ error: "\"only\" must be a valid email address." });
+  const result = await runNewsletter({ trigger: "manual", only: only || undefined });
+  res.json({ ok: true, only: only || "all subscribers", result });
 }));
 
 app.get("/api/admin/preview", requireAdmin, (req, res) => {
