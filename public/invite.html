@@ -38,6 +38,10 @@
       outline: none; font-family: inherit; margin-bottom: 14px;
     }
     input:focus { border-color: var(--accent); }
+    #code {
+      text-transform: uppercase; letter-spacing: .18em; font-weight: 600;
+      text-align: center; font-size: 17px;
+    }
     button {
       width: 100%; padding: 12px; background: var(--accent); color: #fff; border: 0;
       border-radius: 999px; font-size: 14px; font-weight: 700; cursor: pointer;
@@ -62,7 +66,12 @@
     <div class="msg" id="msg"></div>
 
     <form id="form" style="display:none" onsubmit="return submitForm(event)">
-      <div class="who" id="who"></div>
+      <div id="codeWrap" style="display:none">
+        <label for="code">Your invite code</label>
+        <input type="text" id="code" autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="ABCD-2345" maxlength="9" oninput="onCodeInput()">
+      </div>
+      <div class="who" id="who" style="display:none"></div>
       <label for="pw">Choose a password</label>
       <input type="password" id="pw" autocomplete="new-password" placeholder="At least 10 characters">
       <label for="pw2">Confirm password</label>
@@ -75,43 +84,106 @@
   </div>
 
 <script>
-var token = location.pathname.split("/").filter(Boolean).pop() || "";
+// Two ways in. A token in the URL (the clickable link) still works, but the
+// default is a code typed on a page the person navigated to themselves - a long
+// random token in a URL, on a new domain, in front of a password box, is what
+// phishing looks like to a corporate link scanner, and ours got blocked.
+var parts = location.pathname.split("/").filter(Boolean);
+var token = (parts[0] === "invite" && parts[1]) ? parts[1] : "";
+var verified = null;   // the invite we have confirmed, by whichever route
 
 function show(kind, text) {
   var m = document.getElementById("msg");
   m.className = "msg " + kind;
   m.textContent = text;
-  m.style.display = "block";
+  m.style.display = text ? "block" : "none";
+}
+function clearMsg() { document.getElementById("msg").style.display = "none"; }
+
+function setWho(email) {
+  var w = document.getElementById("who");
+  w.innerHTML = "Signing up as <strong>" + email + "</strong>";
+  w.style.display = "block";
 }
 
-async function checkInvite() {
+function normalize(v) { return String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, ""); }
+
+// Check the code as soon as a full one has been typed, so nobody fills in a
+// password only to find out the code was wrong.
+var codeTimer = null;
+function onCodeInput() {
+  var raw = normalize(document.getElementById("code").value);
+  if (raw.length > 4) document.getElementById("code").value = raw.slice(0, 4) + "-" + raw.slice(4, 8);
+  verified = null;
+  document.getElementById("who").style.display = "none";
+  clearTimeout(codeTimer);
+  if (raw.length === 8) codeTimer = setTimeout(function () { checkCode(raw); }, 250);
+  else clearMsg();
+}
+
+async function checkCode(code) {
+  try {
+    var res = await fetch("/api/invite-code/" + encodeURIComponent(code));
+    var data = await res.json();
+    if (!res.ok || !data.valid) { show("err", data.error || "That code isn't valid."); return; }
+    verified = { mode: "code", code: code, email: data.email };
+    clearMsg();
+    setWho(data.email);
+  } catch (err) {
+    show("err", "Could not check that code: " + err.message);
+  }
+}
+
+async function startWithToken() {
   try {
     var res = await fetch("/api/invite/" + encodeURIComponent(token));
     var data = await res.json();
     if (!res.ok || !data.valid) {
-      document.getElementById("sub").textContent = "";
-      show("err", data.error || "This invitation link is no longer valid. It may have already been used or expired — ask for a fresh one.");
+      // The link is dead, but a code may still be usable - offer that instead of
+      // a dead end.
+      document.getElementById("sub").textContent = "Enter the code from your invitation email.";
+      document.getElementById("codeWrap").style.display = "block";
+      document.getElementById("form").style.display = "block";
+      show("err", data.error || "That link is no longer valid \u2014 try your code instead.");
       return;
     }
+    verified = { mode: "token", email: data.email };
     document.getElementById("sub").textContent = "Pick a password and you're in. This link works once.";
-    document.getElementById("who").innerHTML = "Signing up as <strong>" + data.email + "</strong>";
+    setWho(data.email);
     document.getElementById("form").style.display = "block";
     document.getElementById("pw").focus();
   } catch (err) {
-    document.getElementById("sub").textContent = "";
     show("err", "Could not check that invitation: " + err.message);
   }
+}
+
+function startWithCode() {
+  document.getElementById("sub").textContent = "Enter the code from your invitation email, then pick a password.";
+  document.getElementById("codeWrap").style.display = "block";
+  document.getElementById("form").style.display = "block";
+  document.getElementById("code").focus();
 }
 
 async function submitForm(e) {
   e.preventDefault();
   var pw = document.getElementById("pw").value;
   var pw2 = document.getElementById("pw2").value;
+  var typed = normalize(document.getElementById("code").value);
+
+  if (!verified && typed.length === 8) { await checkCode(typed); }
+  if (!verified) {
+    show("err", token ? "That invitation is not valid." : "Enter the 8-character code from your invitation email.");
+    return false;
+  }
   if (pw !== pw2) { show("err", "Those two passwords don't match."); return false; }
+
   var btn = document.getElementById("btn");
-  btn.disabled = true; btn.textContent = "Creating…";
+  btn.disabled = true; btn.textContent = "Creating\u2026";
+  var url = verified.mode === "token"
+    ? "/api/invite/" + encodeURIComponent(token)
+    : "/api/invite-code/" + encodeURIComponent(verified.code);
   try {
-    var res = await fetch("/api/invite/" + encodeURIComponent(token), {
+    var res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: pw })
@@ -122,7 +194,7 @@ async function submitForm(e) {
       btn.disabled = false; btn.textContent = "Create my login";
       return false;
     }
-    show("ok", "You're all set. Taking you in…");
+    show("ok", "You're all set. Taking you in\u2026");
     document.getElementById("form").style.display = "none";
     setTimeout(function () { location.href = "/"; }, 1200);
   } catch (err) {
@@ -132,7 +204,7 @@ async function submitForm(e) {
   return false;
 }
 
-checkInvite();
+if (token) startWithToken(); else startWithCode();
 </script>
 </body>
 </html>

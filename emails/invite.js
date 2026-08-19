@@ -37,13 +37,19 @@ function tabRow(emoji, title, blurb, isLast) {
   </td></tr>`;
 }
 
-// opts: { name, appUrl, inviteUrl, senderName, expiresDays }
+// opts: { name, appUrl, inviteUrl, code, senderName, expiresDays }
 function renderInvite(opts = {}) {
   const appUrl = (opts.appUrl || "https://www.pieceofpi.app").replace(/\/$/, "");
   const name = opts.name ? String(opts.name).trim() : "";
   const sender = opts.senderName || "Nick";
   const inviteUrl = opts.inviteUrl || (appUrl + "/subscribe");
   const days = opts.expiresDays || 14;
+  // The code is the primary route in. Corporate link scanners treat a long
+  // random token in a URL as credential phishing and block it, so the email
+  // leads with something typed into a page the reader navigated to themselves.
+  const rawCode = String(opts.code || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const code = rawCode.length === 8 ? rawCode.slice(0, 4) + "-" + rawCode.slice(4) : rawCode;
+  const codeUrl = appUrl + "/invite";
   const hello = name ? `Hi ${esc(name)},` : "Hi there,";
   const subject = `${name ? name + ", y" : "Y"}ou're in 🥧 Piece of Pi access + how to use it`;
 
@@ -78,10 +84,19 @@ function renderInvite(opts = {}) {
           <div style="font-size:14px;color:${PALETTE.body};line-height:1.7;margin-top:12px;">
             It's yours to poke around in whenever you like.
           </div>
+          ${code ? `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 6px 0;">
+            <tr><td style="background:${PALETTE.surface};border:1px solid ${PALETTE.border};border-radius:14px;padding:20px;text-align:center;">
+              <div style="font-size:12px;color:${PALETTE.muted};margin-bottom:4px;">Go to <strong style="color:${PALETTE.text};">${esc(codeUrl.replace(/^https?:\/\//, ""))}</strong> and enter this code:</div>
+              <div style="font-family:'Courier New',Courier,monospace;font-size:30px;font-weight:700;color:${PALETTE.accent};letter-spacing:4px;padding:8px 0 6px 0;">${esc(code)}</div>
+              <div style="font-size:12px;color:${PALETTE.dim};line-height:1.6;">Then pick your own password &mdash; about ten seconds.<br>The code is yours alone and expires in ${days} days.</div>
+            </td></tr>
+          </table>
+          <div style="padding:6px 0 4px 0;">${button(codeUrl, "Open the sign-up page", true)}</div>` : `
           <div style="padding:22px 0 6px 0;">${button(inviteUrl, "Create my login", true)}</div>
           <div style="font-size:12px;color:${PALETTE.dim};text-align:center;line-height:1.6;">
             Pick your own password &mdash; takes about ten seconds.<br>This link is just for you and expires in ${days} days.
-          </div>
+          </div>`}
         </td></tr>
 
         <!-- Guide -->

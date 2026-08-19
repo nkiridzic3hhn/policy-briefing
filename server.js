@@ -7,6 +7,7 @@ const { renderEmail } = require("./emails/render");
 const { sendEmail } = require("./lib/email");
 const { renderInvite } = require("./emails/invite");
 const { hashPassword, verifyPassword, passwordProblem } = require("./lib/passwords");
+const { generateCode, normalizeCode, formatCode, isWellFormed } = require("./lib/invitecode");
 
 const app = express();
 app.use(express.json());
@@ -196,6 +197,76 @@ app.post("/api/subscribe", async (req, res) => {
 
 // --- Invitations (open routes: the whole point is that she has no login yet) ---
 
+// A short code is short enough to be worth guessing at, so redemption attempts
+// are capped per IP. In memory on purpose: a restart clearing the counters is
+// not a meaningful bypass when the window is ten minutes.
+const inviteAttempts = new Map();
+const ATTEMPT_LIMIT = 12, ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
+function tooManyAttempts(ip) {
+  const now = Date.now();
+  const rec = inviteAttempts.get(ip);
+  if (!rec || now - rec.start > ATTEMPT_WINDOW_MS) {
+    inviteAttempts.set(ip, { start: now, count: 1 });
+    if (inviteAttempts.size > 5000) inviteAttempts.clear(); // crude cap, never unbounded
+    return false;
+  }
+  rec.count++;
+  return rec.count > ATTEMPT_LIMIT;
+}
+
+// Turn a validated invite into an account and a session. Shared by the code and
+// token paths so both can never drift apart on something as load-bearing as this.
+async function redeemInvite(invite, password, req) {
+  const claimed = await db.consumeInvite(invite.id);
+  if (!claimed) return { code: 409, body: { error: "This invitation has just been used." } };
+  const user = await db.createUser(invite.email, invite.name, hashPassword(password));
+  req.session.authed = true;
+  req.session.userEmail = user.email;
+  req.session.userName = user.name;
+  console.log(`[invite] account created for ${user.email}`);
+  return { code: 200, body: { ok: true, email: user.email } };
+}
+
+// The page someone lands on when they type pieceofpi.app/invite themselves -
+// no token in the URL, nothing for a link scanner to object to.
+app.get("/invite", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "invite.html"));
+});
+
+// Look up an invite by its typed code, so the page can confirm who it is for
+// before they choose a password.
+app.get("/api/invite-code/:code", async (req, res) => {
+  if (!DB_ENABLED) return res.status(503).json({ valid: false, error: "Accounts aren't set up yet." });
+  if (tooManyAttempts(req.ip)) return res.status(429).json({ valid: false, error: "Too many tries. Wait a few minutes and try again." });
+  if (!isWellFormed(req.params.code)) return res.status(400).json({ valid: false, error: "That code doesn't look right - it's 8 characters, like ABCD-2345." });
+  try {
+    const invite = await db.findUsableInviteByCode(req.params.code);
+    if (!invite) return res.status(404).json({ valid: false, error: "That code has already been used, expired, or was mistyped." });
+    res.json({ valid: true, email: invite.email, name: invite.name });
+  } catch (err) {
+    console.error("invite code lookup failed:", err);
+    res.status(500).json({ valid: false, error: "Could not check that code." });
+  }
+});
+
+// Redeem by code.
+app.post("/api/invite-code/:code", async (req, res) => {
+  if (!DB_ENABLED) return res.status(503).json({ error: "Accounts aren't set up yet." });
+  if (tooManyAttempts(req.ip)) return res.status(429).json({ error: "Too many tries. Wait a few minutes and try again." });
+  const problem = passwordProblem((req.body || {}).password);
+  if (problem) return res.status(400).json({ error: problem });
+  if (!isWellFormed(req.params.code)) return res.status(400).json({ error: "That code doesn't look right - it's 8 characters, like ABCD-2345." });
+  try {
+    const invite = await db.findUsableInviteByCode(req.params.code);
+    if (!invite) return res.status(404).json({ error: "That code has already been used, expired, or was mistyped." });
+    const out = await redeemInvite(invite, req.body.password, req);
+    res.status(out.code).json(out.body);
+  } catch (err) {
+    console.error("invite code redeem failed:", err);
+    res.status(500).json({ error: "Could not create your login. Try again." });
+  }
+});
+
 // The page where an invited person picks a password.
 app.get("/invite/:token", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "invite.html"));
@@ -225,15 +296,8 @@ app.post("/api/invite/:token", async (req, res) => {
   try {
     const invite = await db.findUsableInvite(req.params.token);
     if (!invite) return res.status(404).json({ error: "This invitation has already been used or has expired." });
-    const claimed = await db.consumeInvite(invite.id);
-    if (!claimed) return res.status(409).json({ error: "This invitation has just been used." });
-
-    const user = await db.createUser(invite.email, invite.name, hashPassword(password));
-    req.session.authed = true;
-    req.session.userEmail = user.email;
-    req.session.userName = user.name;
-    console.log(`[invite] account created for ${user.email}`);
-    res.json({ ok: true, email: user.email });
+    const out = await redeemInvite(invite, password, req);
+    res.status(out.code).json(out.body);
   } catch (err) {
     console.error("invite redeem failed:", err);
     res.status(500).json({ error: "Could not create your login. Try the link again." });
@@ -465,21 +529,22 @@ app.post("/api/admin/invites", ...adminApi(async (req, res) => {
   const days = Math.min(Math.max(parseInt(body.days, 10) || 14, 1), 60);
 
   const token = crypto.randomBytes(32).toString("hex");
-  const invite = await db.createInvite(email, name, token, days);
+  const code = generateCode();
+  const invite = await db.createInvite(email, name, token, code, days);
   const appUrl = (process.env.APP_URL || "https://www.pieceofpi.app").replace(/\/$/, "");
   const inviteUrl = `${appUrl}/invite/${token}`;
 
-  if (body.send === false) return res.json({ ok: true, invite: { email, expires_at: invite.expires_at }, inviteUrl, emailed: false });
+  if (body.send === false) return res.json({ ok: true, invite: { email, expires_at: invite.expires_at }, inviteUrl, code: formatCode(code), emailed: false });
 
-  const { subject, html } = renderInvite({ name, appUrl, inviteUrl, senderName: body.senderName || "Nick" });
+  const { subject, html } = renderInvite({ name, appUrl, inviteUrl, code, senderName: body.senderName || "Nick", expiresDays: days });
   try {
     await sendEmail({ to: email, subject, html });
   } catch (err) {
     console.error(`[invite] created but email failed for ${email}: ${err.message}`);
     return res.status(502).json({ ok: false, error: `Invite created, but the email failed: ${err.message}`, inviteUrl });
   }
-  console.log(`[invite] sent to ${email}, expires ${invite.expires_at}`);
-  res.json({ ok: true, invite: { email, expires_at: invite.expires_at }, emailed: true });
+  console.log(`[invite] sent to ${email}, code ${formatCode(code)}, expires ${invite.expires_at}`);
+  res.json({ ok: true, invite: { email, expires_at: invite.expires_at }, code: formatCode(code), emailed: true });
 }));
 
 app.delete("/api/admin/invites/:id", ...adminApi(async (req, res) => {
@@ -501,6 +566,7 @@ app.get("/api/admin/invite-preview", requireAdmin, (req, res) => {
     name: String(req.query.name || "Tova"),
     appUrl,
     inviteUrl: appUrl + "/invite/preview-link-not-a-real-token",
+    code: "ABCD2345",
     senderName: String(req.query.from || "Nick")
   });
   res.set("Content-Type", "text/html").send(html);
@@ -541,6 +607,7 @@ app.get("/api/admin/preview", requireAdmin, (req, res) => {
 // --- Auth gate: everything below requires a logged-in session ---
 const PUBLIC_PATHS = new Set([
   "/login",
+  "/invite",
   "/invite.html",
   "/favicon.ico",
   "/favicon.png",
