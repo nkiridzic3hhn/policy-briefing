@@ -347,6 +347,7 @@
     <button id="mode-policy" class="mode-btn active" onclick="switchMode('policy')">Policy Intelligence</button>
     <button id="mode-reputation" class="mode-btn" onclick="switchMode('reputation')">Reputation Watch</button>
     <button id="mode-fraud" class="mode-btn" onclick="switchMode('fraud')">Medicaid Fraud</button>
+    <button id="mode-laws" class="mode-btn" onclick="switchMode('laws')">Law Deadlines</button>
   </div>
   <span id="lastUpdated"></span>
 </header>
@@ -433,6 +434,32 @@
     <button class="predict-btn" id="fraudAnalyzeBtn" onclick="runFraudAnalysis()">&#10022; Fraud Brief</button>
   </aside>
 
+  <!-- ═══ LAW DEADLINES SIDEBAR ═══ -->
+  <aside id="sidebar-laws" style="display:none">
+    <div>
+      <div class="sidebar-label">Deadline window</div>
+      <select class="styled" id="lawWindow" onchange="renderLaws()">
+        <option value="0" selected>Everything tracked</option>
+        <option value="30">Next 30 days</option>
+        <option value="60">Next 60 days</option>
+        <option value="90">Next 90 days</option>
+        <option value="180">Next 6 months</option>
+      </select>
+    </div>
+    <div>
+      <div class="sidebar-label">Jurisdiction</div>
+      <input class="state-search" type="text" id="lawStateSearch" placeholder="Search jurisdictions&hellip;" oninput="buildLawStateList(this.value)">
+      <div class="sel-actions">
+        <button class="mini-link" onclick="selectAllLawStates(true)">Select all</button>
+        <button class="mini-link" onclick="selectAllLawStates(false)">Clear</button>
+      </div>
+      <div class="state-scroll" id="lawStateList"></div>
+      <p class="sel-count" id="lawSelCount">all jurisdictions</p>
+    </div>
+    <button class="run-btn" id="lawBtn" onclick="loadLaws()">Refresh calendar</button>
+    <p class="name-sub" id="lawUpdated" style="text-align:center"></p>
+  </aside>
+
   <!-- Main Content -->
   <main>
 
@@ -479,6 +506,16 @@
       </div>
       <div class="error-banner" id="fraudError"></div>
       <div id="fraudContent"></div>
+    </div>
+
+    <!-- ═══ LAW DEADLINES MAIN ═══ -->
+    <div id="main-laws" style="display:none">
+      <div class="main-header">
+        <h1>Labor law changes and deadlines</h1>
+        <p>Enacted laws and final rules that have not taken effect yet &mdash; the same compliance calendar the weekly email sends from</p>
+      </div>
+      <div class="error-banner" id="lawError"></div>
+      <div id="lawContent"></div>
     </div>
 
   </main>
@@ -845,11 +882,14 @@ async function runPrediction() {
 // ── Reputation Watch ──
 function switchMode(mode) {
   appMode = mode;
-  ["policy", "reputation", "fraud"].forEach(function(m) {
+  ["policy", "reputation", "fraud", "laws"].forEach(function(m) {
     document.getElementById("mode-" + m).classList.toggle("active", m === mode);
     document.getElementById("sidebar-" + m).style.display = m === mode ? "" : "none";
     document.getElementById("main-" + m).style.display    = m === mode ? "" : "none";
   });
+  // The calendar is stored data, not a search, so it can load the moment the
+  // tab is opened rather than waiting for a button press.
+  if (mode === "laws" && !lawResults.length) loadLaws();
 }
 
 // Names list — uses array index as id so duplicate names (e.g. two Angels On Call) stay distinct
@@ -1089,7 +1129,160 @@ async function runReputation() {
   btn.disabled = false; btn.textContent = "Scan for mentions";
 }
 
-// ── Medicaid Fraud ──
+// -- Law deadlines --
+// Unlike the other three tabs this one does not search anything. It reads the
+// compliance calendar the newsletter already maintains, so it is instant and
+// costs nothing to open.
+var lawResults = [];
+var selLawStates = new Set();
+
+function lawShowError(msg) {
+  var b = document.getElementById("lawError");
+  b.textContent = (typeof msg === "object") ? JSON.stringify(msg) : msg;
+  b.style.display = "block";
+}
+function lawHideError() { document.getElementById("lawError").style.display = "none"; }
+
+// Jurisdictions actually present on the calendar - no point offering a filter
+// for a state with nothing tracked.
+function lawJurisdictions() {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < lawResults.length; i++) {
+    var j = lawResults[i].jurisdiction || lawResults[i].state || "";
+    if (j && !seen[j]) { seen[j] = 1; out.push(j); }
+  }
+  return out.sort();
+}
+
+function buildLawStateList(filter) {
+  filter = (filter || "").toLowerCase();
+  var list = lawJurisdictions();
+  var html = "";
+  for (var i = 0; i < list.length; i++) {
+    var j = list[i];
+    if (filter && j.toLowerCase().indexOf(filter) === -1) continue;
+    var checked = selLawStates.has(j) ? "checked" : "";
+    html += '<label class="chk-row"><input type="checkbox" ' + checked + ' data-j="' + j.replace(/"/g, "&quot;") + '" onchange="toggleLawState(this.dataset.j, this.checked)"> ' + j + '</label>';
+  }
+  document.getElementById("lawStateList").innerHTML = html || '<p class="name-sub">Nothing tracked yet.</p>';
+  updateLawCount();
+}
+function toggleLawState(j, checked) { if (checked) selLawStates.add(j); else selLawStates.delete(j); updateLawCount(); renderLaws(); }
+function selectAllLawStates(on) {
+  selLawStates = new Set();
+  if (on) lawJurisdictions().forEach(function(j) { selLawStates.add(j); });
+  buildLawStateList(document.getElementById("lawStateSearch").value);
+  renderLaws();
+}
+function updateLawCount() {
+  document.getElementById("lawSelCount").textContent = selLawStates.size ? (selLawStates.size + " selected") : "all jurisdictions";
+}
+
+function lawBadge(l) {
+  var d = l.days_until;
+  if (d === null || d === undefined) return '<span class="badge badge-gray">' + (l.effective_text || "date TBD") + '</span>';
+  if (d <= 0)  return '<span class="badge badge-red">In effect now</span>';
+  if (d <= 7)  return '<span class="badge badge-red">' + d + ' days to comply</span>';
+  if (d <= 60) return '<span class="badge badge-amber">' + d + ' days</span>';
+  return '<span class="badge badge-purple">' + d + ' days</span>';
+}
+
+function lawUrgency(l) {
+  var d = l.days_until;
+  if (d === null || d === undefined) return "low";
+  if (d <= 30) return "high";
+  if (d <= 90) return "medium";
+  return "low";
+}
+
+function lawPretty(ymd) {
+  if (!ymd) return "";
+  var dt = new Date(ymd + "T00:00:00Z");
+  if (isNaN(dt)) return ymd;
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function lawCardHTML(l) {
+  var when = l.effective_date ? lawPretty(l.effective_date) : (l.effective_text || "");
+  var meta = [l.citation, l.source, when ? "effective " + when : ""].filter(Boolean).join(" \u00b7 ");
+  // The source tier travels with the citation: the verify pass proves a page
+  // says this, not that the page is the agency that made the rule.
+  var tier = l.source_tier_label
+    ? '<span class="badge ' + (l.needs_better_source ? "badge-amber" : "badge-green") + '">' + l.source_tier_label + '</span>'
+    : "";
+  return '<div class="article-card ' + lawUrgency(l) + '">' +
+    '<div class="card-meta">' +
+    lawBadge(l) +
+    '<span class="badge badge-pink">' + (l.jurisdiction || l.state || "") + '</span>' +
+    (l.category ? '<span class="badge badge-gray">' + l.category + '</span>' : '') +
+    tier +
+    '<span class="card-source">' + when + '</span>' +
+    '</div>' +
+    '<p class="card-title">' + (l.title || "") + '</p>' +
+    '<p class="card-summary">' + (l.summary || "") + '</p>' +
+    (l.action ? '<p class="card-summary" style="color:var(--accent);margin-top:6px;"><strong>What to do:</strong> ' + l.action + '</p>' : '') +
+    (meta ? '<p class="card-summary" style="font-size:12px;color:var(--text-dim);margin-top:8px;">' + meta + '</p>' : '') +
+    (l.url && l.url.indexOf("http") === 0 ? '<a class="card-link" href="' + l.url + '" target="_blank">&#8599; Read source</a>' : '') +
+    '</div>';
+}
+
+function renderLaws() {
+  var el = document.getElementById("lawContent");
+  if (!lawResults.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9878;</div><h2>Nothing tracked yet</h2><p>No enacted law changes are on the calendar. An admin can seed it from the admin area.</p></div>';
+    return;
+  }
+  var win = parseInt(document.getElementById("lawWindow").value, 10) || 0;
+  var shown = lawResults.filter(function(l) {
+    if (selLawStates.size && !selLawStates.has(l.jurisdiction || l.state)) return false;
+    if (win) {
+      if (l.days_until === null || l.days_until === undefined) return false;
+      if (l.days_until > win) return false;
+    }
+    return true;
+  });
+  if (!shown.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128197;</div><h2>Nothing in this window</h2><p>' + lawResults.length + ' change' + (lawResults.length !== 1 ? "s are" : " is") + ' tracked overall. Widen the deadline window or clear the jurisdiction filter.</p></div>';
+    return;
+  }
+  var soon = 0;
+  for (var i = 0; i < shown.length; i++) if (shown[i].days_until !== null && shown[i].days_until !== undefined && shown[i].days_until <= 30) soon++;
+  var cards = "";
+  for (var k = 0; k < shown.length; k++) cards += lawCardHTML(shown[k]);
+  el.innerHTML =
+    '<div class="results-meta"><span>' + shown.length + ' deadline' + (shown.length !== 1 ? "s" : "") + (soon ? ' \u00b7 ' + soon + ' within 30 days' : '') + '</span>' +
+    '<div class="legend">' +
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>30 days</span>' +
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span>90 days</span>' +
+    '<span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Later</span>' +
+    '</div></div>' +
+    '<div class="articles-grid">' + cards + '</div>';
+}
+
+async function loadLaws() {
+  lawHideError();
+  var btn = document.getElementById("lawBtn");
+  btn.disabled = true; btn.textContent = "Loading\u2026";
+  document.getElementById("lawContent").innerHTML =
+    '<div class="loading-state"><img src="/logo.png" alt="Loading"><p class="load-title">Loading your calendar&hellip;</p><p class="load-sub">Reading the tracked deadlines. This one does not search the web, so it is quick.</p></div>';
+  try {
+    var res = await fetch("/api/laws");
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    lawResults = Array.isArray(data.laws) ? data.laws : [];
+    buildLawStateList(document.getElementById("lawStateSearch").value);
+    renderLaws();
+    document.getElementById("lawUpdated").textContent = "Updated " + new Date().toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  } catch (err) {
+    lawShowError(err.message);
+    renderLaws();
+  } finally {
+    btn.disabled = false; btn.textContent = "Refresh calendar";
+  }
+}
+
+// -- Medicaid Fraud --
 const FRAUD_CATS = [
   { id: "indictment",    label: "Indictments & charges"     },
   { id: "settlement",    label: "Settlements & recoveries"  },
@@ -1315,6 +1508,7 @@ for (var _c = 0; _c < CHANNELS.length; _c++) selChannels.add(CHANNELS[_c].id);
 buildNameList();
 buildChannelFilters();
 renderReputation();
+renderLaws();
 
 // ── Splash dismiss ──
 setTimeout(function() {

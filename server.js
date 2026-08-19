@@ -431,6 +431,22 @@ app.use((req, res, next) => {
 // --- Protected app ---
 app.use(express.static(path.join(__dirname, "public")));
 
+// Compliance calendar for the dashboard. Reads the SAME stored calendar the
+// newsletter sends from - no searching, no API spend, instant. It sits below
+// the site auth gate rather than behind ADMIN_PASS on purpose: the people who
+// have to meet these deadlines should not need the admin credential to look
+// them up between Monday emails.
+app.get("/api/laws", async (req, res) => {
+  if (!DB_ENABLED) return res.status(503).json({ error: "Database not configured." });
+  try {
+    const lawtracker = require("./lib/lawtracker");
+    res.json({ laws: await lawtracker.calendar() });
+  } catch (err) {
+    console.error("laws api error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/briefing", async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
