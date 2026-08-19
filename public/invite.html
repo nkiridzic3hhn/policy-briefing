@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <title>Create your login · Piece of Pi</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #ffffff; --page: #f4e9ed; --surface: #fdf2f5;
+      --border: rgba(180,60,90,0.15); --text: #2a0f18; --muted: #8a4055;
+      --dim: #b8788a; --accent: #c03060; --red: #b02040; --green: #1d7a54;
+    }
+    body {
+      font-family: 'IBM Plex Sans', sans-serif; background: var(--page);
+      color: var(--text); min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 24px; font-size: 14px; line-height: 1.6;
+    }
+    .card {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 16px;
+      padding: 36px 32px; max-width: 440px; width: 100%; text-align: center;
+    }
+    img.logo { height: 120px; width: auto; display: block; margin: 0 auto 10px auto; }
+    h1 { font-size: 21px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+    p.sub { font-size: 13px; color: var(--muted); line-height: 1.65; margin-bottom: 22px; }
+    .who {
+      background: var(--surface); border-radius: 10px; padding: 10px 14px;
+      font-size: 13px; color: var(--muted); margin-bottom: 20px;
+    }
+    .who strong { color: var(--text); }
+    label { display: block; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+    input {
+      width: 100%; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 9px; padding: 11px 13px; font-size: 14px; color: var(--text);
+      outline: none; font-family: inherit; margin-bottom: 14px;
+    }
+    input:focus { border-color: var(--accent); }
+    button {
+      width: 100%; padding: 12px; background: var(--accent); color: #fff; border: 0;
+      border-radius: 999px; font-size: 14px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: opacity .15s;
+    }
+    button:hover { opacity: .88; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .msg { font-size: 13px; border-radius: 9px; padding: 10px 13px; margin-bottom: 16px; display: none; text-align: left; }
+    .msg.err { background: rgba(176,32,64,0.08); color: var(--red); }
+    .msg.ok { background: rgba(29,122,84,0.09); color: var(--green); }
+    .hint { font-size: 12px; color: var(--dim); text-align: left; margin: -8px 0 16px 0; }
+    .foot { font-size: 11px; color: var(--dim); margin-top: 18px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="/logo.png" alt="Piece of Pi">
+    <h1>Create your login 🥧</h1>
+    <p class="sub" id="sub">Checking your invitation&hellip;</p>
+
+    <div class="msg" id="msg"></div>
+
+    <form id="form" style="display:none" onsubmit="return submitForm(event)">
+      <div class="who" id="who"></div>
+      <label for="pw">Choose a password</label>
+      <input type="password" id="pw" autocomplete="new-password" placeholder="At least 10 characters">
+      <label for="pw2">Confirm password</label>
+      <input type="password" id="pw2" autocomplete="new-password" placeholder="Type it again">
+      <p class="hint">Length beats complexity. A short phrase you'll remember is stronger than a jumble you won't.</p>
+      <button type="submit" id="btn">Create my login</button>
+    </form>
+
+    <p class="foot">Piece of Pi 🥧 &middot; pieceofpi.app</p>
+  </div>
+
+<script>
+var token = location.pathname.split("/").filter(Boolean).pop() || "";
+
+function show(kind, text) {
+  var m = document.getElementById("msg");
+  m.className = "msg " + kind;
+  m.textContent = text;
+  m.style.display = "block";
+}
+
+async function checkInvite() {
+  try {
+    var res = await fetch("/api/invite/" + encodeURIComponent(token));
+    var data = await res.json();
+    if (!res.ok || !data.valid) {
+      document.getElementById("sub").textContent = "";
+      show("err", data.error || "This invitation link is no longer valid. It may have already been used or expired — ask for a fresh one.");
+      return;
+    }
+    document.getElementById("sub").textContent = "Pick a password and you're in. This link works once.";
+    document.getElementById("who").innerHTML = "Signing up as <strong>" + data.email + "</strong>";
+    document.getElementById("form").style.display = "block";
+    document.getElementById("pw").focus();
+  } catch (err) {
+    document.getElementById("sub").textContent = "";
+    show("err", "Could not check that invitation: " + err.message);
+  }
+}
+
+async function submitForm(e) {
+  e.preventDefault();
+  var pw = document.getElementById("pw").value;
+  var pw2 = document.getElementById("pw2").value;
+  if (pw !== pw2) { show("err", "Those two passwords don't match."); return false; }
+  var btn = document.getElementById("btn");
+  btn.disabled = true; btn.textContent = "Creating…";
+  try {
+    var res = await fetch("/api/invite/" + encodeURIComponent(token), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pw })
+    });
+    var data = await res.json();
+    if (!res.ok) {
+      show("err", data.error || "Could not create your login.");
+      btn.disabled = false; btn.textContent = "Create my login";
+      return false;
+    }
+    show("ok", "You're all set. Taking you in…");
+    document.getElementById("form").style.display = "none";
+    setTimeout(function () { location.href = "/"; }, 1200);
+  } catch (err) {
+    show("err", err.message);
+    btn.disabled = false; btn.textContent = "Create my login";
+  }
+  return false;
+}
+
+checkInvite();
+</script>
+</body>
+</html>

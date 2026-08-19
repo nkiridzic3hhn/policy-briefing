@@ -5,6 +5,8 @@ const path = require("path");
 const db = require("./lib/db");
 const { renderEmail } = require("./emails/render");
 const { sendEmail } = require("./lib/email");
+const { renderInvite } = require("./emails/invite");
+const { hashPassword, verifyPassword, passwordProblem } = require("./lib/passwords");
 
 const app = express();
 app.use(express.json());
@@ -50,14 +52,36 @@ app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
-app.post("/api/login", (req, res) => {
-  if (!AUTH_USER || !AUTH_PASS) {
-    return res.status(503).json({ error: "Login is not configured. Set AUTH_USER and AUTH_PASS." });
-  }
+// Two ways in, checked in that order: a real account created from an invite,
+// or the original shared AUTH_USER/AUTH_PASS. The shared credential stays
+// working so nobody is locked out mid-migration; individual accounts are what
+// new people get.
+app.post("/api/login", async (req, res) => {
   const { username, password } = req.body || {};
-  if (safeEqual(username, AUTH_USER) && safeEqual(password, AUTH_PASS)) {
+  const id = String(username || "").toLowerCase().trim();
+
+  if (DB_ENABLED && id.includes("@")) {
+    try {
+      const user = await db.findUserByEmail(id);
+      if (user && verifyPassword(password, user.password_hash)) {
+        req.session.authed = true;
+        req.session.userEmail = user.email;
+        req.session.userName = user.name;
+        db.touchUserLogin(user.id).catch(() => {});
+        return res.json({ ok: true });
+      }
+    } catch (err) {
+      console.error("login lookup failed:", err.message);
+    }
+  }
+
+  if (AUTH_USER && AUTH_PASS && safeEqual(username, AUTH_USER) && safeEqual(password, AUTH_PASS)) {
     req.session.authed = true;
     return res.json({ ok: true });
+  }
+
+  if (!AUTH_USER && !AUTH_PASS && !DB_ENABLED) {
+    return res.status(503).json({ error: "Login is not configured. Set AUTH_USER and AUTH_PASS." });
   }
   res.status(401).json({ error: "Invalid username or password." });
 });
@@ -167,6 +191,52 @@ app.post("/api/subscribe", async (req, res) => {
   } catch (err) {
     console.error("subscribe error:", err);
     res.status(500).json({ error: "Could not save your subscription. Please try again." });
+  }
+});
+
+// --- Invitations (open routes: the whole point is that she has no login yet) ---
+
+// The page where an invited person picks a password.
+app.get("/invite/:token", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "invite.html"));
+});
+
+// Is this link still good? Returns the email it was issued to so the page can
+// show who is signing up, and nothing else - an invite token is not a session.
+app.get("/api/invite/:token", async (req, res) => {
+  if (!DB_ENABLED) return res.status(503).json({ error: "Accounts aren't set up yet." });
+  try {
+    const invite = await db.findUsableInvite(req.params.token);
+    if (!invite) return res.status(404).json({ valid: false, error: "This invitation has already been used or has expired." });
+    res.json({ valid: true, email: invite.email, name: invite.name });
+  } catch (err) {
+    console.error("invite lookup failed:", err);
+    res.status(500).json({ valid: false, error: "Could not check that invitation." });
+  }
+});
+
+// Redeem it. The invite is consumed FIRST: if two requests race, only one gets
+// the row back, so the second cannot also create an account from the same link.
+app.post("/api/invite/:token", async (req, res) => {
+  if (!DB_ENABLED) return res.status(503).json({ error: "Accounts aren't set up yet." });
+  const password = (req.body || {}).password;
+  const problem = passwordProblem(password);
+  if (problem) return res.status(400).json({ error: problem });
+  try {
+    const invite = await db.findUsableInvite(req.params.token);
+    if (!invite) return res.status(404).json({ error: "This invitation has already been used or has expired." });
+    const claimed = await db.consumeInvite(invite.id);
+    if (!claimed) return res.status(409).json({ error: "This invitation has just been used." });
+
+    const user = await db.createUser(invite.email, invite.name, hashPassword(password));
+    req.session.authed = true;
+    req.session.userEmail = user.email;
+    req.session.userName = user.name;
+    console.log(`[invite] account created for ${user.email}`);
+    res.json({ ok: true, email: user.email });
+  } catch (err) {
+    console.error("invite redeem failed:", err);
+    res.status(500).json({ error: "Could not create your login. Try the link again." });
   }
 });
 
@@ -379,6 +449,63 @@ app.get("/admin/laws", requireAdmin, async (req, res) => {
     '</script></body></html>');
 });
 
+// -- Invitations (admin side) --
+
+app.get("/api/admin/invites", ...adminApi(async (req, res) => {
+  res.json({ invites: await db.listInvites(), users: await db.listUsers() });
+}));
+
+// Issue an invite and email it. The link is the credential, so it is random,
+// single-use, and expires - and the email never carries a password.
+app.post("/api/admin/invites", ...adminApi(async (req, res) => {
+  const body = req.body || {};
+  const email = String(body.email || "").toLowerCase().trim();
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "A valid email address is required." });
+  const name = String(body.name || "").trim().slice(0, 80);
+  const days = Math.min(Math.max(parseInt(body.days, 10) || 14, 1), 60);
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const invite = await db.createInvite(email, name, token, days);
+  const appUrl = (process.env.APP_URL || "https://www.pieceofpi.app").replace(/\/$/, "");
+  const inviteUrl = `${appUrl}/invite/${token}`;
+
+  if (body.send === false) return res.json({ ok: true, invite: { email, expires_at: invite.expires_at }, inviteUrl, emailed: false });
+
+  const { subject, html } = renderInvite({ name, appUrl, inviteUrl, senderName: body.senderName || "Nick" });
+  try {
+    await sendEmail({ to: email, subject, html });
+  } catch (err) {
+    console.error(`[invite] created but email failed for ${email}: ${err.message}`);
+    return res.status(502).json({ ok: false, error: `Invite created, but the email failed: ${err.message}`, inviteUrl });
+  }
+  console.log(`[invite] sent to ${email}, expires ${invite.expires_at}`);
+  res.json({ ok: true, invite: { email, expires_at: invite.expires_at }, emailed: true });
+}));
+
+app.delete("/api/admin/invites/:id", ...adminApi(async (req, res) => {
+  const row = await db.revokeInvite(parseInt(req.params.id, 10));
+  if (!row) return res.status(404).json({ error: "Not found." });
+  res.json({ ok: true, email: row.email });
+}));
+
+app.delete("/api/admin/users/:id", ...adminApi(async (req, res) => {
+  const row = await db.deleteUser(parseInt(req.params.id, 10));
+  if (!row) return res.status(404).json({ error: "Not found." });
+  res.json({ ok: true, email: row.email });
+}));
+
+// Preview the invite email without issuing an invite or sending anything.
+app.get("/api/admin/invite-preview", requireAdmin, (req, res) => {
+  const appUrl = (process.env.APP_URL || "https://www.pieceofpi.app").replace(/\/$/, "");
+  const { html } = renderInvite({
+    name: String(req.query.name || "Tova"),
+    appUrl,
+    inviteUrl: appUrl + "/invite/preview-link-not-a-real-token",
+    senderName: String(req.query.from || "Nick")
+  });
+  res.set("Content-Type", "text/html").send(html);
+});
+
 app.get("/api/admin/sends", ...adminApi(async (req, res) => {
   res.json({ sends: await db.listSends(50) });
 }));
@@ -414,6 +541,7 @@ app.get("/api/admin/preview", requireAdmin, (req, res) => {
 // --- Auth gate: everything below requires a logged-in session ---
 const PUBLIC_PATHS = new Set([
   "/login",
+  "/invite.html",
   "/favicon.ico",
   "/favicon.png",
   "/logo.png"

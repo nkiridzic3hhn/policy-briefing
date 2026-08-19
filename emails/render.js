@@ -393,4 +393,4 @@ function renderEmail(subscriber, digests, opts = {}) {
   return { subject, html, hasContent, urls, lawAlerts };
 }
 
-module.exports = { renderEmail };
+module.exports = { renderEmail, PALETTE };
